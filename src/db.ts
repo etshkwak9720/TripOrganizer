@@ -36,11 +36,15 @@ export interface Group {
   score: number;
 }
 
+export type PlaceKind = 'sight' | 'food';
+
 export interface Place {
   id?: number;
   tripId: number;
   name: string;
   region: string;
+  kind: PlaceKind;     // NEW: 방문지/식당 구분
+  address?: string;    // NEW: 검색 결과 표시 주소
   lat?: number;
   lng?: number;
   learn?: string;      // 의미/유래/문화유산/학습 콘텐츠
@@ -57,7 +61,6 @@ export interface Slot {
   order?: number;      // position within the band (activity bands)
   placeId?: number | null;    // for activity bands
   activityText?: string;      // free-text activity/region
-  mealId?: number | null;     // for meal bands (chosen recommendation)
 }
 
 // Slots of a day in running order: band order first, then position in band.
@@ -70,18 +73,7 @@ export function orderSlots(slots: Slot[]): Slot[] {
   );
 }
 
-export const hasContent = (s: Slot) => !!s.placeId || !!s.activityText?.trim() || !!s.mealId;
-
-// mock restaurant recommendation (stands in for Naver data until API keys added)
-export interface Meal {
-  id?: number;
-  name: string;
-  region: string;
-  priceLevel: 1 | 2 | 3 | 4;  // ₩ ~ ₩₩₩₩
-  reviewCount: number;
-  rating: number;             // 0-5
-  category: string;
-}
+export const hasContent = (s: Slot) => !!s.placeId || !!s.activityText?.trim();
 
 export interface Award {
   tripId: number;             // primary key
@@ -143,7 +135,6 @@ class YeojeongDB extends Dexie {
   groups!: Table<Group, number>;
   places!: Table<Place, number>;
   slots!: Table<Slot, number>;
-  meals!: Table<Meal, number>;
   awards!: Table<Award, number>;
   missions!: Table<Mission, number>;
   missionResults!: Table<MissionResult, number>;
@@ -171,6 +162,13 @@ class YeojeongDB extends Dexie {
     });
     this.version(4).stores({
       photos: '++id, tripId, placeId, slotId',
+    });
+    this.version(5).stores({
+      meals: null, // drop mock recommendation table
+    }).upgrade(async (tx) => {
+      await tx.table('places').toCollection().modify((p) => { if (!p.kind) p.kind = 'sight'; });
+      // mealId: 추천 선택 시 이름이 activityText로 복사돼 있으므로 필드만 버린다
+      await tx.table('slots').toCollection().modify((s) => { delete s.mealId; });
     });
   }
 }

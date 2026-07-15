@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { getJejuCoords } from '../mock';
 import { Icon, TopBar, Screen, EmptyState } from '../ui';
 
 type Tab = 'members' | 'groups' | 'places';
@@ -134,8 +133,7 @@ function Places({ tripId }: { tripId: number }) {
   return (
     <div>
       <AddRow placeholder="방문 장소 이름 (예: 성산일출봉)" onAdd={(name) => {
-        const coords = getJejuCoords(name);
-        db.places.add({ tripId, name, region: '', ...coords });
+        db.places.add({ tripId, name, region: '', kind: 'sight' });
       }} />
       {places?.length === 0 && <EmptyState icon="add_location_alt" title="장소를 추가하세요" hint="일정에 넣을 방문지를 등록해요" />}
       <ul className="space-y-2">

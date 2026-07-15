@@ -54,11 +54,11 @@ await page.evaluate(async () => {
       S('places').put({ id: 3, tripId: 1, name: '우도 해변', region: '제주시 우도면', lat: 33.5065, lng: 126.9527, learn: '소가 누운 모습을 닮아 우도라 불립니다. 홍조단괴 해빈은 천연기념물로, 산호가 아닌 홍조류가 만든 세계적으로 드문 백사장입니다.' });
 
       const slots = [
-        { id: 1, dayIndex: 0, band: '조식', plannedTime: '08:00', mealId: 2 },
+        { id: 1, dayIndex: 0, band: '조식', plannedTime: '08:00', activityText: '성산 해녀의 집' },
         { id: 2, dayIndex: 0, band: '오전', plannedTime: '10:00', placeId: 1 },
-        { id: 3, dayIndex: 0, band: '중식', plannedTime: '12:30', mealId: 1 },
+        { id: 3, dayIndex: 0, band: '중식', plannedTime: '12:30', activityText: '올레국수' },
         { id: 4, dayIndex: 0, band: '오후', plannedTime: '14:30', placeId: 2 },
-        { id: 5, dayIndex: 0, band: '석식', plannedTime: '18:00', mealId: 3 },
+        { id: 5, dayIndex: 0, band: '석식', plannedTime: '18:00', activityText: '흑돼지 명가' },
         { id: 6, dayIndex: 0, band: '저녁', plannedTime: '20:00', placeId: 3 },
       ];
       slots.forEach((s) => S('slots').put({ ...s, tripId: 1 }));

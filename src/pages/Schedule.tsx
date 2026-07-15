@@ -3,9 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db, BANDS, isMealBand, BAND_DEFAULT_TIME,
-  type Band, type Slot, type Meal, type Place, type Photo,
+  type Band, type Slot, type Place, type Photo,
 } from '../db';
-import { PRICE_LABEL } from '../mock';
 import { Icon, TopBar, Screen } from '../ui';
 import ScheduleImport from '../components/ScheduleImport';
 
@@ -33,7 +32,7 @@ export default function Schedule() {
       missing.map((b) => ({
         tripId, dayIndex: day, band: b,
         plannedTime: BAND_DEFAULT_TIME[b], order: 0,
-        placeId: null, activityText: '', mealId: null,
+        placeId: null, activityText: '',
       })),
     );
   }, [slots, tripId, day]);
@@ -152,8 +151,6 @@ function Entry({ slot, band, places, index, canDelete }: {
   slot: Slot; band: Band; places: Place[]; index: number; canDelete: boolean;
 }) {
   const meal = isMealBand(band);
-  const [pickMeal, setPickMeal] = useState(false);
-  const chosenMeal = useLiveQuery(() => (slot.mealId ? db.meals.get(slot.mealId) : undefined), [slot.mealId]);
 
   return (
     <div className={index > 0 ? 'pt-3 border-t border-outline-variant/25' : ''}>
@@ -173,37 +170,12 @@ function Entry({ slot, band, places, index, canDelete }: {
       </div>
 
       {meal ? (
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <input
-              className="input text-[14px] flex-1"
-              placeholder="식사 장소/메뉴 직접 입력 (예: 갈치조림)"
-              value={slot.activityText ?? ''}
-              onChange={(e) => db.slots.update(slot.id!, { activityText: e.target.value })}
-            />
-            <button
-              onClick={() => setPickMeal(true)}
-              className="chip bg-emerald/10 text-emerald shrink-0 flex items-center gap-1 text-[12px] px-2.5"
-            >
-              <Icon name="restaurant_menu" className="text-[14px]" /> 추천 보기
-            </button>
-          </div>
-          
-          {chosenMeal && (
-            <div className="text-[12px] text-emerald bg-emerald/5 border border-emerald/10 p-2 rounded-md flex items-center justify-between">
-              <span className="truncate">
-                추천 선택됨: <b>{chosenMeal.name}</b> ({chosenMeal.category})
-              </span>
-              <button 
-                onClick={() => db.slots.update(slot.id!, { mealId: null })}
-                className="text-on-surface-variant hover:text-error ml-2 shrink-0"
-                title="추천 해제"
-              >
-                <Icon name="close" className="text-[14px]" />
-              </button>
-            </div>
-          )}
-        </div>
+        <input
+          className="input text-[14px]"
+          placeholder="식사 장소/메뉴 입력 (예: 갈치조림)"
+          value={slot.activityText ?? ''}
+          onChange={(e) => db.slots.update(slot.id!, { activityText: e.target.value })}
+        />
       ) : (
         <div className="space-y-2">
           <select
@@ -224,78 +196,6 @@ function Entry({ slot, band, places, index, canDelete }: {
       )}
 
       <SlotPhotoManager slotId={slot.id!} tripId={slot.tripId} />
-
-      {pickMeal && (
-        <MealPicker
-          onClose={() => setPickMeal(false)}
-          onPick={(id, name) => {
-            db.slots.update(slot.id!, { mealId: id, activityText: name });
-            setPickMeal(false);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function MealRow({ meal, selected }: { meal: Meal; selected?: boolean }) {
-  return (
-    <div className={`flex items-center gap-3 p-2 rounded-md ${selected ? 'bg-primary-container/10' : ''}`}>
-      <div className="w-10 h-10 rounded-md bg-emerald/10 grid place-items-center text-emerald">
-        <Icon name="restaurant" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-[14px] truncate">{meal.name}</p>
-        <p className="text-[12px] text-on-surface-variant">{meal.category} · {meal.region}</p>
-      </div>
-      <div className="text-right text-[12px]">
-        <p className="text-primary-container font-bold">{PRICE_LABEL[meal.priceLevel]}</p>
-        <p className="text-on-surface-variant">⭐{meal.rating} · {meal.reviewCount.toLocaleString()}</p>
-      </div>
-    </div>
-  );
-}
-
-type SortKey = 'rating' | 'reviewCount' | 'priceLevel';
-
-function MealPicker({ onClose, onPick }: { onClose: () => void; onPick: (id: number, name: string) => void }) {
-  const [sort, setSort] = useState<SortKey>('rating');
-  const meals = useLiveQuery(() => db.meals.toArray(), []);
-  const sorted = [...(meals ?? [])].sort((a, b) =>
-    sort === 'priceLevel' ? a.priceLevel - b.priceLevel : (b[sort] as number) - (a[sort] as number),
-  );
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
-      <div className="w-full max-w-[520px] bg-surface rounded-t-2xl p-4 pb-8 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-head font-bold text-[18px]">식당 추천</h2>
-          <button onClick={onClose} className="text-outline"><Icon name="close" /></button>
-        </div>
-        <div className="flex gap-2 mb-3">
-          {([['rating', '평점순'], ['reviewCount', '리뷰많은순'], ['priceLevel', '가격낮은순']] as const).map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => setSort(k)}
-              className={`chip ${sort === k ? 'bg-primary-container text-on-primary-container' : 'bg-surface-variant text-on-surface-variant'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <p className="text-[11px] text-on-surface-variant mb-2">
-          <Icon name="info" className="text-[13px] align-middle" /> 샘플 데이터입니다. 실데이터는 네이버 API 연동 시 제공됩니다.
-        </p>
-        <ul className="overflow-y-auto divide-y divide-outline-variant/20">
-          {sorted.map((m) => (
-            <li key={m.id}>
-              <button className="w-full text-left" onClick={() => onPick(m.id!, m.name)}>
-                <MealRow meal={m} />
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
 }

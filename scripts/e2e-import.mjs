@@ -126,7 +126,7 @@ const slots3 = await readDB('slots');
 const places3 = await readDB('places');
 const trips3 = await readDB('trips');
 // blank placeholder slots exist for untouched bands, so count only filled ones
-const filled = slots3.filter((s) => s.placeId || s.activityText || s.mealId);
+const filled = slots3.filter((s) => s.placeId || s.activityText);
 check('엑셀 일정 적용됨', filled.length === 8, `${filled.length}개 일정`);
 check('기존 일정 덮어쓰기 (수동 입력분 제거)', !filled.some((s) => s.activityText === '카페 휴식'));
 check('장소 자동 생성', places3.length === 3, places3.map((p) => p.name).join(', '));
