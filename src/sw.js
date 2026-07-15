@@ -31,7 +31,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k !== CACHE && k !== TILE_CACHE).map((k) => caches.delete(k)));
       await self.clients.claim();
     })(),
   );
@@ -39,6 +39,14 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
+
+  // OSM tiles: cache-first with a size cap, so previously-seen map areas
+  // keep working offline.
+  if (req.method === 'GET' && /tile\.openstreetmap\.org/.test(req.url)) {
+    event.respondWith(tileCacheFirst(req));
+    return;
+  }
+
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
 
   // ignoreVary: the SW's install fetch sends no Origin header while page
@@ -66,3 +74,30 @@ self.addEventListener('fetch', (event) => {
     })(),
   );
 });
+
+const TILE_CACHE = 'osm-tiles-v1';
+const TILE_MAX = 300;
+
+async function tileCacheFirst(req) {
+  const cache = await caches.open(TILE_CACHE);
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  try {
+    const res = await fetch(req);
+    // Tile <img> requests are cross-origin and un-annotated (no crossorigin
+    // attribute), so the browser fetches them in 'no-cors' mode and the SW
+    // sees an *opaque* Response: status 0, res.ok is always false even on a
+    // real 200. Caching must key off res.type instead, or tiles are silently
+    // never cached (verified empirically against the real tile server).
+    if (res.ok || res.type === 'opaque') {
+      await cache.put(req, res.clone());
+      const keys = await cache.keys();
+      if (keys.length > TILE_MAX) {
+        await Promise.all(keys.slice(0, keys.length - TILE_MAX).map((k) => cache.delete(k)));
+      }
+    }
+    return res;
+  } catch {
+    return new Response('', { status: 504 });
+  }
+}

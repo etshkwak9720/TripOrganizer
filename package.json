@@ -10,6 +10,10 @@
     "preview": "vite preview",
     "test:e2e": "node scripts/e2e.mjs",
     "test:offline": "node scripts/offline.mjs",
+    "test:map": "node scripts/smoke-live.mjs",
+    "test:meal": "node scripts/smoke-meal.mjs",
+    "test:place": "node scripts/smoke-placepicker.mjs",
+    "test:geo": "node scripts/test-geo.mjs",
     "shots": "node scripts/shots.mjs",
     "icons": "node scripts/make-icons.mjs"
   },

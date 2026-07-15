@@ -1,11 +1,11 @@
 // End-to-end functional check: drives the real UI and asserts behaviour.
-// Run: node .build/e2e.mjs   (dev server must be on :5173)
+// Run: node scripts/e2e.mjs   (dev server must be running; set BASE_URL to override)
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BASE = 'http://localhost:5173';
+const BASE = process.env.BASE_URL || 'http://localhost:5173';
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok, detail });
@@ -15,6 +15,43 @@ const check = (name, ok, detail = '') => {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+
+// mock external geo services — e2e must not hit public servers.
+// Nominatim: echo the query back as the (only) candidate so any place name
+// searched anywhere in this script resolves to a pickable result. Known
+// place names get distinct real-ish Jeju coordinates (rather than one fixed
+// point for everything) so the Live map's simulated travel between stops
+// isn't a zero-distance no-op.
+const KNOWN_COORDS = {
+  성산일출봉: [33.4581, 126.9426],
+  만장굴: [33.5296, 126.7715],
+  올레국수: [33.4996, 126.5312],
+};
+await page.route('**nominatim.openstreetmap.org/**', (route) => {
+  const u = new URL(route.request().url());
+  const q = u.searchParams.get('q') || '장소';
+  const [lat, lon] = KNOWN_COORDS[q] || [33.4996, 126.5312];
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([{ display_name: `${q}, 제주특별자치도`, name: q, lat: String(lat), lon: String(lon) }]),
+  });
+});
+await page.route('**router.project-osrm.org/**', (route) =>
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ routes: [{ geometry: { coordinates: [[126.53, 33.49], [126.94, 33.45]] }, duration: 1800, distance: 45000 }] }),
+  }),
+);
+// Avoid real tile traffic: 1x1 transparent PNG for any tile request.
+const BLANK_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
+await page.route('**tile.openstreetmap.org/**', (route) =>
+  route.fulfill({ status: 200, contentType: 'image/png', body: BLANK_PNG }),
+);
 
 // ---------- clean slate ----------
 await page.goto(BASE, { waitUntil: 'networkidle' });
@@ -64,41 +101,65 @@ check('구성원 → 모둠 배정', assigned >= 1, `${assigned}명 배정됨`);
 await page.locator('button', { hasText: '장소' }).first().click();
 await page.waitForTimeout(250);
 for (const p of ['성산일출봉', '만장굴']) {
-  await page.getByPlaceholder('방문 장소 이름 (예: 성산일출봉)').fill(p);
-  await page.getByPlaceholder('방문 장소 이름 (예: 성산일출봉)').press('Enter');
-  await page.waitForTimeout(150);
+  await page.getByRole('button', { name: /장소 추가 \(지도 검색\)/ }).click();
+  await page.waitForTimeout(200);
+  await page.getByPlaceholder(/이름\/주소로 검색/).fill(p);
+  await page.waitForTimeout(800); // debounce + mocked fetch
+  await page.locator('li', { hasText: p }).first().click();
+  await page.waitForTimeout(200);
+  await page.getByRole('button', { name: /^저장$/ }).click();
+  await page.waitForTimeout(300);
 }
 await page.locator('li', { hasText: '성산일출봉' }).getByText('expand_more').click();
 await page.waitForTimeout(200);
 await page.getByPlaceholder('지역 (예: 서귀포시)').fill('서귀포시 성산읍');
 await page.getByPlaceholder(/장소 안내/).fill('유네스코 세계자연유산 응회구.');
 await page.waitForTimeout(400);
+// also give 만장굴 learn content so the Live page's learn card has something
+// to show regardless of which stop it ends up parked on once simulation finishes.
+await page.locator('li', { hasText: '만장굴' }).getByText('expand_more').click();
+await page.waitForTimeout(200);
+await page.getByPlaceholder(/장소 안내/).fill('세계자연유산 용암동굴.');
+await page.waitForTimeout(400);
 const placeData = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('places').objectStore('places').getAll().onsuccess = (e) => r(e.target.result.map((p) => ({ n: p.name, rg: p.region, lr: (p.learn || '').slice(0, 8) }))); }; }));
 check('장소 추가', placeData.length === 2, placeData.map((p) => p.n).join(', '));
 check('장소 지역/학습콘텐츠 저장', !!placeData[0].rg && !!placeData[0].lr, `${placeData[0].rg} / "${placeData[0].lr}…"`);
 
-// ---------- 6. schedule: place select + meal recommendation ----------
+// ---------- 6. schedule: place select + register restaurant for a meal slot ----------
 await page.goto(`${BASE}/trip/1/schedule`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
-const selects = page.locator('select');
-await selects.nth(0).selectOption('1'); // 오전 → 성산일출봉 (place id 1)
+// Every band (meal and non-meal alike) auto-creates one slot entry on mount,
+// so `select` elements are interleaved band-by-band in BANDS order (조식,
+// 오전, 중식, 오후, 석식, 저녁) — scope by band card instead of a flat index.
+const morningCard = page.locator('div.card').filter({ hasText: '오전' });
+await morningCard.locator('select').selectOption('1'); // 오전 → 성산일출봉 (place id 1)
 await page.waitForTimeout(250);
-await selects.nth(1).selectOption('2'); // 오후 → 만장굴 (place id 2)
+const afternoonCard = page.locator('div.card').filter({ hasText: '오후' });
+await afternoonCard.locator('select').selectOption('2'); // 오후 → 만장굴 (place id 2)
 await page.waitForTimeout(300);
 
-await page.getByRole('button', { name: /식당 추천 보기/ }).first().click();
-await page.waitForTimeout(400);
-const sheetOpen = await page.getByText('식당 추천', { exact: true }).isVisible().catch(() => false);
-check('식사 추천 시트 열림', sheetOpen);
-// sort by review count then pick top
-await page.getByRole('button', { name: '리뷰많은순' }).click();
+// 조식 band already has its auto-created first entry — "식당 등록" is visible directly.
+const breakfastCard = page.locator('div.card').filter({ hasText: '조식' });
+check('조식 밴드 노출', await breakfastCard.isVisible().catch(() => false));
+const needsFirstEntry = await breakfastCard.getByRole('button', { name: /식사 정하기/ }).isVisible().catch(() => false);
+if (needsFirstEntry) {
+  await breakfastCard.getByRole('button', { name: /식사 정하기/ }).click();
+  await page.waitForTimeout(300);
+}
+await breakfastCard.getByRole('button', { name: /식당 등록/ }).click();
 await page.waitForTimeout(300);
-const firstMeal = await page.locator('ul li button').first().innerText();
-await page.locator('ul li button').first().click();
+await page.getByPlaceholder(/이름\/주소로 검색/).fill('올레국수');
+await page.waitForTimeout(800); // debounce + mocked fetch
+await page.locator('li', { hasText: '올레국수' }).first().click();
+await page.waitForTimeout(200);
+await page.getByRole('button', { name: /^저장$/ }).click();
 await page.waitForTimeout(400);
-const slotData = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('slots').objectStore('slots').getAll().onsuccess = (e) => r(e.target.result.map((s) => ({ b: s.band, p: s.placeId, m: s.mealId }))); }; }));
+
+const slotData = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('slots').objectStore('slots').getAll().onsuccess = (e) => r(e.target.result.map((s) => ({ b: s.band, p: s.placeId }))); }; }));
 check('일정: 장소 배정', slotData.some((s) => s.b === '오전' && s.p) && slotData.some((s) => s.b === '오후' && s.p));
-check('일정: 식당 선택 저장', slotData.some((s) => s.b === '조식' && s.m), firstMeal.split('\n')[1] || '');
+check('일정: 식당 장소 연결 저장', slotData.some((s) => s.b === '조식' && s.p));
+const foodPlace = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('places').objectStore('places').getAll().onsuccess = (e) => r(e.target.result.find((p) => p.kind === 'food')); }; }));
+check('식당 장소 kind=food + 좌표', !!foodPlace && foodPlace.lat != null, foodPlace ? `${foodPlace.name} @ ${foodPlace.lat},${foodPlace.lng}` : '');
 
 // ---------- 7. itinerary: timeline + travel time ----------
 await page.goto(`${BASE}/trip/1`, { waitUntil: 'networkidle' });
@@ -157,6 +218,9 @@ check('1등 상/꼴찌 벌 저장(새로고침 유지)', awardVal === '저녁 �
 // ---------- 11. live simulation ----------
 await page.goto(`${BASE}/trip/1/live`, { waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
+// default mode is real GPS — switch to simulation before the speed/play controls show up.
+await page.locator('button', { hasText: /실 GPS|시뮬/ }).first().click();
+await page.waitForTimeout(300);
 await page.getByRole('button', { name: '12x' }).click();
 await page.getByRole('button', { name: /이동 시작/ }).click();
 await page.waitForTimeout(1200);
