@@ -30,15 +30,16 @@ function FitBounds({ stops }: { stops: MapStop[] }) {
 }
 
 // Spec §4 second half: while moving, refit to my position + the current
-// target whenever the target changes (arrival advances targetIdx). Keyed on
-// targetIdx only — NOT on pos, which ticks every GPS update and would fight
-// the user's own panning/zooming.
+// target whenever the target changes (arrival advances targetIdx) or when
+// a position first arrives. Keyed on targetIdx and hasPos — NOT on the raw
+// pos values, which tick every GPS update and would fight the user's panning.
 function FitLeg({ pos, target, targetIdx }: { pos: MapPos | null; target: MapStop | undefined; targetIdx: number }) {
   const map = useMap();
+  const hasPos = pos != null;
   useEffect(() => {
     if (!pos || !target) return;
     map.fitBounds(L.latLngBounds([[pos.lat, pos.lng], [target.lat, target.lng]]), { padding: [40, 40] });
-  }, [targetIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [targetIdx, hasPos]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
