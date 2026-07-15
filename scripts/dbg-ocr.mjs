@@ -1,0 +1,34 @@
+import { chromium } from 'playwright';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const IMG = join(HERE, '.tmp', 'schedule.png');
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 390, height: 844 } });
+p.on('pageerror', (e) => console.log('  [pageerror]', e.message.slice(0, 200)));
+
+await p.goto('http://localhost:5173', { waitUntil: 'networkidle' });
+await p.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+await p.goto('http://localhost:5173', { waitUntil: 'networkidle' });
+await p.waitForTimeout(400);
+await p.getByRole('button', { name: /새 여행 만들기/ }).click();
+await p.getByPlaceholder('예: 3반 제주 수학여행').fill('t');
+await p.getByRole('button', { name: /여행 만들고 구성 시작/ }).click();
+await p.waitForURL(/setup/);
+await p.goto('http://localhost:5173/trip/1/schedule', { waitUntil: 'networkidle' });
+await p.waitForTimeout(400);
+await p.getByRole('button', { name: /가져오기/ }).click();
+await p.waitForTimeout(300);
+console.log('--- uploading, running OCR ---');
+await p.locator('input[type=file]').setInputFiles(IMG);
+await p.waitForFunction(() => !/글자 인식 중|준비 중/.test(document.body.innerText), null, { timeout: 150000 }).catch(() => {});
+await p.waitForTimeout(1000);
+
+await p.locator('summary', { hasText: '인식된 글자' }).click().catch(() => {});
+const raw = await p.locator('[data-testid=ocr-raw]').innerText().catch(() => '(no raw text element)');
+console.log('=== OCR RAW TEXT ===');
+console.log(raw);
+console.log('=== END ===');
+const selects = await p.locator('.fixed.inset-0 select').count();
+console.log('preview rows:', selects / 2);
+await b.close();

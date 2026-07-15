@@ -1,0 +1,36 @@
+import { chromium } from 'playwright';
+import * as XLSX from 'xlsx';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { HEADER, ROWS } from './fixtures/yeosu.mjs';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const OUT = join(HERE, '..', 'screenshots');
+const XP = join(HERE, '.tmp', 'yeosu.xlsx');
+{ const ws = XLSX.utils.aoa_to_sheet([HEADER, ...ROWS]); const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '일정표'); XLSX.writeFile(wb, XP); }
+
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+await p.goto('http://localhost:5173', { waitUntil: 'networkidle' });
+await p.evaluate(() => new Promise(r => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+await p.goto('http://localhost:5173', { waitUntil: 'networkidle' });
+await p.waitForTimeout(400);
+await p.getByRole('button', { name: /새 여행 만들기/ }).click();
+await p.getByPlaceholder('예: 3반 제주 수학여행').fill('여수 1박2일');
+await p.getByRole('button', { name: /여행 만들고 구성 시작/ }).click();
+await p.waitForURL(/setup/);
+await p.goto('http://localhost:5173/trip/1/schedule', { waitUntil: 'networkidle' });
+await p.waitForTimeout(500);
+await p.getByRole('button', { name: /가져오기/ }).click();
+await p.waitForTimeout(300);
+await p.locator('input[type=file]').setInputFiles(XP);
+await p.waitForTimeout(1500);
+await p.screenshot({ path: join(OUT, '12-yeosu-preview.png') });
+console.log('shot 12-yeosu-preview');
+await p.getByRole('button', { name: /개 일정 적용하기/ }).click();
+await p.waitForTimeout(2000);
+await p.goto('http://localhost:5173/trip/1', { waitUntil: 'networkidle' });
+await p.waitForTimeout(900);
+await p.screenshot({ path: join(OUT, '13-yeosu-itinerary.png') });
+console.log('shot 13-yeosu-itinerary');
+await b.close();

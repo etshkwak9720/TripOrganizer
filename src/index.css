@@ -1,0 +1,38 @@
+@import url('/assets/css/fonts.css');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
+  background: #f8f9fa;
+  color: #191c1d;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* app viewport: mobile-first, centered on wide screens */
+#root {
+  max-width: 520px;
+  margin: 0 auto;
+  min-height: 100%;
+  background: #f8f9fa;
+  position: relative;
+}
+
+@layer components {
+  .card { @apply bg-surface-container-lowest rounded-lg border border-outline-variant/30 shadow-sm; }
+  .btn-primary { @apply bg-primary-container text-on-primary-container font-semibold rounded-md px-4 py-3 active:translate-y-px transition disabled:opacity-50; }
+  .btn-ghost { @apply border border-emerald text-emerald font-semibold rounded-md px-4 py-3 active:translate-y-px transition; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-3 py-1 text-[13px] font-medium; }
+  .input { @apply w-full rounded-md border-outline-variant bg-white px-3 py-2.5 text-[15px] focus:border-primary-container focus:ring-primary-container; }
+  .field-label { @apply block text-[13px] font-semibold text-on-surface-variant mb-1.5; }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
