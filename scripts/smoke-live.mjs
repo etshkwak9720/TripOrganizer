@@ -61,8 +61,10 @@ await page.evaluate(() => new Promise((resolve, reject) => {
     S('trips').put({ id: 1, title: '실시간 내비 스모크 테스트', startDate: '2026-09-14', dayCount: 1, mode: 'relaxed', createdAt: Date.now() });
     S('places').put({ id: 1, tripId: 1, name: '제주공항', region: '제주시', kind: 'sight', lat: 33.5104, lng: 126.4914 });
     S('places').put({ id: 2, tripId: 1, name: '성산일출봉', region: '서귀포시 성산읍', kind: 'sight', lat: 33.4581, lng: 126.9426 });
+    S('places').put({ id: 3, tripId: 1, name: '서귀포', region: '서귀포시', kind: 'sight', lat: 33.2541, lng: 126.5601 });
     S('slots').put({ id: 1, tripId: 1, dayIndex: 0, band: '오전', plannedTime: '10:00', placeId: 1 });
     S('slots').put({ id: 2, tripId: 1, dayIndex: 0, band: '오후', plannedTime: '14:00', placeId: 2 });
+    S('slots').put({ id: 3, tripId: 1, dayIndex: 0, band: '저녁', plannedTime: '18:00', placeId: 3 });
 
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -79,7 +81,7 @@ const mapVisible = await page.locator('.leaflet-container').first().isVisible().
 check('지도 표시', mapVisible);
 
 const markerCount = await page.locator('.leaflet-marker-icon').count().catch(() => 0);
-check('번호 마커 2개 표시', markerCount === 2, `count=${markerCount}`);
+check('번호 마커 3개 표시', markerCount === 3, `count=${markerCount}`);
 
 // ---------- switch to simulation mode ----------
 const modeChip = page.locator('button', { hasText: /실 GPS|시뮬/ }).first();
@@ -87,6 +89,11 @@ check('GPS/시뮬 전환 칩 노출', await modeChip.isVisible().catch(() => fal
 await modeChip.click();
 await page.waitForTimeout(300);
 check('시뮬 모드로 전환', /시뮬/.test(await modeChip.innerText().catch(() => '')));
+
+// ---------- entering sim mode parks on stop 1 (distance 0) — must NOT fire an arrival banner ----------
+await page.waitForTimeout(1000); // let position/arrival effects settle
+const earlyText = await page.locator('main').innerText().catch(() => '');
+check('시뮬 진입 시 조기 도착 배너 없음', !/도착!/.test(earlyText), earlyText.match(/도착!/)?.[0] || 'none (expected)');
 
 // ---------- ETA check BEFORE starting movement ----------
 await page.waitForTimeout(1500); // let mocked OSRM leg resolve
@@ -105,10 +112,10 @@ const startBtn = page.getByRole('button', { name: /이동 시작/ });
 check('이동 시작 버튼 노출', await startBtn.isVisible().catch(() => false));
 await startBtn.click();
 
-// ---------- wait for arrival at final stop (성산일출봉) ----------
+// ---------- wait for arrival at the LAST stop (서귀포) — traverses two legs at 12x ----------
 let arrived = false;
 try {
-  await page.getByText(/성산일출봉 도착!/).waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByText(/서귀포 도착!/).waitFor({ state: 'visible', timeout: 40000 });
   arrived = true;
 } catch {
   arrived = false;

@@ -72,7 +72,10 @@ export default function Live() {
         if (seg >= coordStops.length - 1) { setPlaying(false); return coordStops.length - 1; }
         const segMin = segMins[seg] || 10;
         const deltaMin = (SIM_MIN_PER_SEC * speed * TICK) / 1000;
-        return Math.min(p + deltaMin / segMin, coordStops.length - 1);
+        // Clamp to the next waypoint boundary so a large per-tick jump (fast
+        // speed + long leg) can't skip clean over an intermediate stop's
+        // exact coordinates — each stop must be landed on before continuing.
+        return Math.min(p + deltaMin / segMin, seg + 1, coordStops.length - 1);
       });
     }, TICK);
     return () => clearInterval(t);
@@ -104,10 +107,11 @@ export default function Live() {
   const [banner, setBanner] = useState<string | null>(null);
   const legFetchRef = useRef({ t: 0, lat: 0, lng: 0, idx: -1 });
   const lastArriveRef = useRef<number | null>(null);
+  const leftTargetRef = useRef(false); // seen outside the radius since targeting this stop
 
   useEffect(() => {
     setTargetIdx(0); setProgress(0); setPlaying(false); setLeg(null);
-    lastArriveRef.current = null; legFetchRef.current = { t: 0, lat: 0, lng: 0, idx: -1 };
+    lastArriveRef.current = null; leftTargetRef.current = false; legFetchRef.current = { t: 0, lat: 0, lng: 0, idx: -1 };
   }, [day, coordsKey]);
 
   const target = coordStops[targetIdx];
@@ -135,13 +139,17 @@ export default function Live() {
     return () => { on = false; };
   }, [pos?.lat, pos?.lng, targetIdx, coordsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // arrival: within radius of target -> banner + vibrate + advance
+  // Arrival: advance whenever we're inside the target's radius, but only
+  // announce it if we actually travelled in from outside — entering sim mode
+  // (or opening the page) while parked on a stop is not an arrival.
   useEffect(() => {
     if (!pos || !target) return;
     const d = haversineKm(pos.lat, pos.lng, target.place.lat!, target.place.lng!);
-    if (d >= ARRIVE_KM || lastArriveRef.current === target.place.id) return;
+    if (d >= ARRIVE_KM) { leftTargetRef.current = true; return; }
+    if (lastArriveRef.current === target.place.id) return;
     lastArriveRef.current = target.place.id!;
-    fireAlert(`📍 ${target.place.name} 도착! (${target.band} · ${target.time})`);
+    if (leftTargetRef.current) fireAlert(`📍 ${target.place.name} 도착! (${target.band} · ${target.time})`);
+    leftTargetRef.current = false;
     if (targetIdx < coordStops.length - 1) setTargetIdx(targetIdx + 1);
   }, [pos, target, targetIdx, coordStops.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,7 +259,7 @@ export default function Live() {
                     {s}x
                   </button>
                 ))}
-                <button onClick={() => { setProgress(0); setPlaying(false); setTargetIdx(0); lastArriveRef.current = null; }}
+                <button onClick={() => { setProgress(0); setPlaying(false); setTargetIdx(0); lastArriveRef.current = null; leftTargetRef.current = false; }}
                   className="chip bg-surface-variant text-on-surface-variant">
                   <Icon name="restart_alt" className="text-[16px]" />
                 </button>
