@@ -183,7 +183,10 @@ function Places({ tripId }: { tripId: number }) {
           title="장소 추가"
           onClose={() => setAdding(false)}
           onSave={async (v) => {
-            await db.places.add({ tripId, name: v.name, region: '', kind: 'sight', address: v.address || undefined, lat: v.lat, lng: v.lng });
+            await db.places.add({
+              tripId, name: v.name, region: '', kind: 'sight', address: v.address || undefined,
+              ...(v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : {}),
+            });
             setAdding(false);
           }}
         />
@@ -192,9 +195,15 @@ function Places({ tripId }: { tripId: number }) {
         <PlacePicker
           title="위치 찾기"
           initialName={editTarget.name}
+          initialLat={editTarget.lat}
+          initialLng={editTarget.lng}
+          initialAddress={editTarget.address}
           onClose={() => setEditing(null)}
           onSave={async (v) => {
-            await db.places.update(editing, { name: v.name, address: v.address || undefined, lat: v.lat, lng: v.lng });
+            await db.places.update(editing, {
+              name: v.name, address: v.address || undefined,
+              ...(v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : {}),
+            });
             setEditing(null);
           }}
         />

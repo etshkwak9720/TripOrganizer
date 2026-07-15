@@ -2,6 +2,14 @@
 // Schedule > 조식 > "식당 등록" > search > pick > save -> verify place created + slot linked + select shows place name.
 // Run: node scripts/smoke-meal.mjs   (dev server must be running; set BASE_URL to override)
 import { chromium } from 'playwright';
+import * as XLSX from 'xlsx';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { mkdirSync } from 'fs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const TMP = join(HERE, '.tmp');
+mkdirSync(TMP, { recursive: true });
 
 const BASE = process.env.BASE_URL || 'http://localhost:5173';
 const results = [];
@@ -9,6 +17,20 @@ const check = (name, ok, detail = '') => {
   results.push({ name, ok, detail });
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`);
 };
+
+// Workbook for the Bug B regression: an imported 조식 (meal-band) row must
+// create a place with kind='food', not the hardcoded 'sight'.
+const IMPORT_XLSX_PATH = join(TMP, 'test-meal-import.xlsx');
+{
+  const aoa = [
+    ['일차', '구분', '시간', '방문장소', '지역', '세부일정'],
+    ['1일차', '조식', '07:30', '명진전복', '제주시', '전복죽'],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '일정표');
+  XLSX.writeFile(wb, IMPORT_XLSX_PATH);
+}
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -182,6 +204,55 @@ try {
 } catch (e) {
   check('일정(Itinerary): 식당명 표시', false, e.message);
   check('일정(Itinerary): 메뉴 메모 표시', false, e.message);
+}
+
+// ---------- Bug B regression: an imported meal-band (조식) row must produce
+// a place with kind='food' (not the hardcoded 'sight'), and the Schedule
+// meal <select> for that band must show it selected (not blank), since the
+// select used to hard-filter to kind==='food' only.
+try {
+  await page.goto(`${BASE}/trip/${tripId}/schedule`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: /가져오기/ }).click();
+  await page.waitForTimeout(400);
+  await page.locator('input[type=file][accept*="xlsx"]').setInputFiles(IMPORT_XLSX_PATH);
+  await page.waitForTimeout(1200);
+  await page.getByRole('button', { name: /개 일정 적용하기/ }).click();
+  await page.waitForTimeout(1200);
+
+  const placesAfterImport = await readDB('places');
+  const myeongjin = placesAfterImport.find((p) => p.name === '명진전복');
+  check(
+    '가져오기: 조식 밴드 행이 kind=food 장소로 생성됨',
+    myeongjin?.kind === 'food',
+    myeongjin ? `kind=${myeongjin.kind}` : '장소를 찾지 못함',
+  );
+
+  await page.goto(`${BASE}/trip/${tripId}/schedule`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+  // The band may render more than one entry (a separate, pre-existing
+  // race in the "ensure every band has one slot" effect can add a blank
+  // sibling); find the select whose value is the imported place's id,
+  // proving THAT slot renders it selected rather than blank.
+  const breakfastCard2 = page.locator('div.card').filter({ hasText: '조식' });
+  const mealSelects = breakfastCard2.locator('select');
+  const selectCount = await mealSelects.count();
+  let selectedText = '';
+  for (let i = 0; i < selectCount; i++) {
+    const val = await mealSelects.nth(i).inputValue().catch(() => '');
+    if (val === String(myeongjin?.id)) {
+      selectedText = (await mealSelects.nth(i).locator('option:checked').innerText().catch(() => '')).trim();
+      break;
+    }
+  }
+  check(
+    '가져오기: 조식 셀렉트에 선택된 옵션이 비어있지 않음 (명진전복 표시)',
+    selectedText.length > 0 && selectedText !== '식당 선택…',
+    `selected="${selectedText}"`,
+  );
+} catch (e) {
+  check('가져오기: 조식 밴드 행이 kind=food 장소로 생성됨', false, e.message);
+  check('가져오기: 조식 셀렉트에 선택된 옵션이 비어있지 않음 (명진전복 표시)', false, e.message);
 }
 
 await browser.close();

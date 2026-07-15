@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { Icon } from '../ui';
 import '../leaflet';
 
 export interface MapStop { name: string; lat: number; lng: number; food?: boolean }
@@ -28,6 +29,39 @@ function FitBounds({ stops }: { stops: MapStop[] }) {
   return null;
 }
 
+// Spec §4 second half: while moving, refit to my position + the current
+// target whenever the target changes (arrival advances targetIdx). Keyed on
+// targetIdx only — NOT on pos, which ticks every GPS update and would fight
+// the user's own panning/zooming.
+function FitLeg({ pos, target, targetIdx }: { pos: MapPos | null; target: MapStop | undefined; targetIdx: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!pos || !target) return;
+    map.fitBounds(L.latLngBounds([[pos.lat, pos.lng], [target.lat, target.lng]]), { padding: [40, 40] });
+  }, [targetIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
+// Manual recenter button (spec §4): fits my position + next destination on
+// demand, so a user who has panned away can always get back.
+function RecenterControl({ pos, target }: { pos: MapPos | null; target: MapStop | undefined }) {
+  const map = useMap();
+  if (!pos) return null;
+  return (
+    <button
+      type="button"
+      aria-label="내 위치로"
+      onClick={() => {
+        if (target) map.fitBounds(L.latLngBounds([[pos.lat, pos.lng], [target.lat, target.lng]]), { padding: [40, 40] });
+        else map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 15));
+      }}
+      className="absolute bottom-3 right-3 z-[1000] w-10 h-10 rounded-full bg-surface shadow-md border border-outline-variant/40 grid place-items-center text-primary-container active:scale-95 transition"
+    >
+      <Icon name="my_location" className="text-[20px]" />
+    </button>
+  );
+}
+
 export default function LiveMap({ stops, route, leg, pos, targetIdx }: {
   stops: MapStop[];
   route: [number, number][] | null; // full-day road route (dashed)
@@ -35,6 +69,7 @@ export default function LiveMap({ stops, route, leg, pos, targetIdx }: {
   pos: MapPos | null;
   targetIdx: number;
 }) {
+  const target = stops[targetIdx];
   return (
     <MapContainer center={[36.5, 127.8]} zoom={7} className="w-full h-full">
       <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
@@ -52,6 +87,8 @@ export default function LiveMap({ stops, route, leg, pos, targetIdx }: {
         </>
       )}
       <FitBounds stops={stops} />
+      <FitLeg pos={pos} target={target} targetIdx={targetIdx} />
+      <RecenterControl pos={pos} target={target} />
     </MapContainer>
   );
 }

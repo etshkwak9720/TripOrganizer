@@ -180,9 +180,13 @@ function Entry({ slot, band, places, index, canDelete }: {
               onChange={(e) => db.slots.update(slot.id!, { placeId: e.target.value ? Number(e.target.value) : null })}
             >
               <option value="">식당 선택…</option>
-              {places.filter((p) => p.kind === 'food').map((p) => (
-                <option key={p.id} value={p.id}>{p.name}{p.region ? ` (${p.region})` : ''}</option>
-              ))}
+              {[...places]
+                .sort((a, b) => (a.kind === 'food' ? 0 : 1) - (b.kind === 'food' ? 0 : 1))
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.kind !== 'food' ? ' (방문지)' : ''}{p.region ? ` (${p.region})` : ''}
+                  </option>
+                ))}
             </select>
             <button
               onClick={() => setPickerOpen(true)}
@@ -226,7 +230,8 @@ function Entry({ slot, band, places, index, canDelete }: {
           onSave={async (v) => {
             const pid = await db.places.add({
               tripId: slot.tripId, name: v.name, region: '', kind: 'food',
-              address: v.address || undefined, lat: v.lat, lng: v.lng,
+              address: v.address || undefined,
+              ...(v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : {}),
             });
             await db.slots.update(slot.id!, { placeId: pid });
             setPickerOpen(false);

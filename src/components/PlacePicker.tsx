@@ -18,9 +18,12 @@ function ClickToMove({ onMove }: { onMove: (lat: number, lng: number) => void })
   return null;
 }
 
-export default function PlacePicker({ title, initialName, onSave, onClose }: {
+export default function PlacePicker({ title, initialName, initialLat, initialLng, initialAddress, onSave, onClose }: {
   title: string;
   initialName?: string;
+  initialLat?: number;
+  initialLng?: number;
+  initialAddress?: string;
   onSave: (p: PickedPlace) => void;
   onClose: () => void;
 }) {
@@ -29,7 +32,9 @@ export default function PlacePicker({ title, initialName, onSave, onClose }: {
   const [cands, setCands] = useState<GeoCandidate[]>([]);
   const [searching, setSearching] = useState(false);
   const [err, setErr] = useState(false);
-  const [sel, setSel] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const [sel, setSel] = useState<{ lat: number; lng: number; address: string } | null>(
+    initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng, address: initialAddress ?? '' } : null,
+  );
 
   // debounced Nominatim search (stale flag: a slow older response must not
   // overwrite results of a newer query)

@@ -83,13 +83,15 @@ async function tileCacheFirst(req) {
   const hit = await cache.match(req);
   if (hit) return hit;
   try {
-    const res = await fetch(req);
     // Tile <img> requests are cross-origin and un-annotated (no crossorigin
-    // attribute), so the browser fetches them in 'no-cors' mode and the SW
-    // sees an *opaque* Response: status 0, res.ok is always false even on a
-    // real 200. Caching must key off res.type instead, or tiles are silently
-    // never cached (verified empirically against the real tile server).
-    if (res.ok || res.type === 'opaque') {
+    // attribute), so the browser would normally fetch them in 'no-cors' mode,
+    // giving the SW an *opaque* Response (status 0, res.ok always false) that
+    // hides the real HTTP status — a transient 429/500 tile would then look
+    // identical to a 200 and get cached forever. The OSM tile server sends
+    // `Access-Control-Allow-Origin: *`, so we re-issue the request ourselves
+    // as a CORS fetch to read the real status before deciding to cache.
+    const res = await fetch(req.url, { mode: 'cors' });
+    if (res.ok) {
       await cache.put(req, res.clone());
       const keys = await cache.keys();
       if (keys.length > TILE_MAX) {

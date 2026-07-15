@@ -83,6 +83,39 @@ const placeRow = page.locator('li', { hasText: '성산일출봉' }).first();
 const rowText = await placeRow.innerText().catch(() => '');
 check('장소 목록에 📍 좌표 표시', /📍/.test(rowText), rowText.replace(/\n/g, ' | '));
 
+// ---------- Bug A regression: re-opening 위치 찾기 on a place that ALREADY
+// has coords must show the map+pin immediately (not '좌표 없이 저장'), and
+// saving must never wipe the existing lat/lng (Dexie deletes on undefined).
+const editBtn = placeRow.getByRole('button', { name: '지도에서 찾기' });
+check('재편집(edit_location_alt) 버튼 노출', await editBtn.isVisible().catch(() => false));
+await editBtn.click();
+await page.waitForTimeout(400);
+
+const reopenMapVisible = await page.locator('.leaflet-container').first().isVisible().catch(() => false);
+check('재편집 시 지도+핀 즉시 표시 (기존 좌표로 시딩)', reopenMapVisible);
+
+const reopenSaveBtn = page.locator('.fixed.inset-0 button.btn-primary').last();
+const reopenSaveText = (await reopenSaveBtn.innerText().catch(() => '')).trim();
+check('저장 버튼이 "좌표 없이 저장"이 아님', reopenSaveText === '저장', `text="${reopenSaveText}"`);
+
+await reopenSaveBtn.click();
+await page.waitForTimeout(400);
+
+const readDB = (store) =>
+  page.evaluate((s) => new Promise((r) => {
+    const q = indexedDB.open('yeojeong');
+    q.onsuccess = () => { q.result.transaction(s).objectStore(s).getAll().onsuccess = (e) => r(e.target.result); };
+  }), store);
+
+const placesAfterReedit = await readDB('places');
+const seongsanAfter = placesAfterReedit.find((p) => p.name === '성산일출봉');
+const coordsIntact = !!seongsanAfter && typeof seongsanAfter.lat === 'number' && typeof seongsanAfter.lng === 'number';
+check(
+  'DB: 재편집 저장 후에도 lat/lng이 숫자로 유지 (삭제되지 않음)',
+  coordsIntact,
+  seongsanAfter ? `lat=${seongsanAfter.lat}, lng=${seongsanAfter.lng}` : 'place not found',
+);
+
 await browser.close();
 const pass = results.filter((r) => r.ok).length;
 console.log(`\n==== ${pass}/${results.length} PASS ====`);
