@@ -112,7 +112,11 @@ function TimelineItem({
         </div>
 
         {isMeal ? (
-          <p className="font-head font-bold">{activity || '식사 내용이 없습니다.'}</p>
+          <div>
+            <p className="font-head font-bold">{place ? place.name : (activity || '식사 내용이 없습니다.')}</p>
+            {place && activity && <p className="text-[12px] text-on-surface-variant mt-0.5">메뉴: {activity}</p>}
+            {place?.region && <p className="text-[12px] text-on-surface-variant">{place.region}</p>}
+          </div>
         ) : place ? (
           <div>
             <p className="font-head font-bold">{place.name}</p>

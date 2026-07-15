@@ -7,6 +7,7 @@ import {
 } from '../db';
 import { Icon, TopBar, Screen } from '../ui';
 import ScheduleImport from '../components/ScheduleImport';
+import PlacePicker from '../components/PlacePicker';
 
 const MAX_PER_BAND = 4;
 
@@ -151,6 +152,7 @@ function Entry({ slot, band, places, index, canDelete }: {
   slot: Slot; band: Band; places: Place[]; index: number; canDelete: boolean;
 }) {
   const meal = isMealBand(band);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <div className={index > 0 ? 'pt-3 border-t border-outline-variant/25' : ''}>
@@ -170,12 +172,32 @@ function Entry({ slot, band, places, index, canDelete }: {
       </div>
 
       {meal ? (
-        <input
-          className="input text-[14px]"
-          placeholder="식사 장소/메뉴 입력 (예: 갈치조림)"
-          value={slot.activityText ?? ''}
-          onChange={(e) => db.slots.update(slot.id!, { activityText: e.target.value })}
-        />
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <select
+              className="input text-[14px] flex-1"
+              value={slot.placeId ?? ''}
+              onChange={(e) => db.slots.update(slot.id!, { placeId: e.target.value ? Number(e.target.value) : null })}
+            >
+              <option value="">식당 선택…</option>
+              {places.filter((p) => p.kind === 'food').map((p) => (
+                <option key={p.id} value={p.id}>{p.name}{p.region ? ` (${p.region})` : ''}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="chip bg-emerald/10 text-emerald shrink-0 flex items-center gap-1 text-[12px] px-2.5"
+            >
+              <Icon name="add_location_alt" className="text-[14px]" /> 식당 등록
+            </button>
+          </div>
+          <input
+            className="input text-[14px]"
+            placeholder="메뉴 메모 (예: 꼬막비빔밥)"
+            value={slot.activityText ?? ''}
+            onChange={(e) => db.slots.update(slot.id!, { activityText: e.target.value })}
+          />
+        </div>
       ) : (
         <div className="space-y-2">
           <select
@@ -196,6 +218,21 @@ function Entry({ slot, band, places, index, canDelete }: {
       )}
 
       <SlotPhotoManager slotId={slot.id!} tripId={slot.tripId} />
+
+      {pickerOpen && (
+        <PlacePicker
+          title="식당 등록"
+          onClose={() => setPickerOpen(false)}
+          onSave={async (v) => {
+            const pid = await db.places.add({
+              tripId: slot.tripId, name: v.name, region: '', kind: 'food',
+              address: v.address || undefined, lat: v.lat, lng: v.lng,
+            });
+            await db.slots.update(slot.id!, { placeId: pid });
+            setPickerOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
