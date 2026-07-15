@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
-import { getJejuCoords } from '../mock';
 import { Icon, TopBar, Screen, EmptyState } from '../ui';
+import PlacePicker from '../components/PlacePicker';
 
 type Tab = 'members' | 'groups' | 'places';
 
@@ -131,24 +131,35 @@ function Groups({ tripId }: { tripId: number }) {
 function Places({ tripId }: { tripId: number }) {
   const places = useLiveQuery(() => db.places.where('tripId').equals(tripId).toArray(), [tripId]);
   const [open, setOpen] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<number | null>(null); // placeId being re-pinned
+  const editTarget = places?.find((p) => p.id === editing);
+
   return (
     <div>
-      <AddRow placeholder="방문 장소 이름 (예: 성산일출봉)" onAdd={(name) => {
-        const coords = getJejuCoords(name);
-        db.places.add({ tripId, name, region: '', ...coords });
-      }} />
+      <button className="btn-primary w-full mb-3 flex items-center justify-center gap-1" onClick={() => setAdding(true)}>
+        <Icon name="add_location_alt" /> 장소 추가 (지도 검색)
+      </button>
       {places?.length === 0 && <EmptyState icon="add_location_alt" title="장소를 추가하세요" hint="일정에 넣을 방문지를 등록해요" />}
       <ul className="space-y-2">
         {places?.map((p) => (
           <li key={p.id} className="card p-3">
             <div className="flex items-center gap-3">
-              <Icon name="place" className="text-primary-container" />
+              <Icon name={p.kind === 'food' ? 'restaurant' : 'place'} className={p.kind === 'food' ? 'text-emerald' : 'text-primary-container'} />
               <div className="flex-1 min-w-0">
-                <span className="font-medium block truncate">{p.name}</span>
-                {p.lat != null && p.lng != null && (
+                <span className="font-medium block truncate">
+                  {p.name}
+                  {p.kind === 'food' && <span className="ml-1 text-[10px] text-emerald font-bold">식당</span>}
+                </span>
+                {p.lat != null && p.lng != null ? (
                   <span className="text-[10px] text-emerald font-semibold">📍 {p.lat.toFixed(4)}, {p.lng.toFixed(4)}</span>
+                ) : (
+                  <button onClick={() => setEditing(p.id!)} className="text-[10px] text-error font-semibold">좌표 없음 — 지도에서 찾기</button>
                 )}
               </div>
+              <button onClick={() => setEditing(p.id!)} className="text-outline" aria-label="지도에서 찾기">
+                <Icon name="edit_location_alt" className="text-[20px]" />
+              </button>
               <button onClick={() => setOpen(open === p.id ? null : p.id!)} className="text-outline">
                 <Icon name={open === p.id ? 'expand_less' : 'expand_more'} />
               </button>
@@ -156,20 +167,9 @@ function Places({ tripId }: { tripId: number }) {
             </div>
             {open === p.id && (
               <div className="mt-3 space-y-2 pl-8">
+                {p.address && <p className="text-[11px] text-on-surface-variant">{p.address}</p>}
                 <input className="input" placeholder="지역 (예: 서귀포시)" defaultValue={p.region}
                   onChange={(e) => db.places.update(p.id!, { region: e.target.value })} />
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant">위도 (Latitude)</label>
-                    <input type="number" step="any" className="input py-1 text-[13px]" placeholder="예: 33.4581" defaultValue={p.lat ?? ''}
-                      onChange={(e) => db.places.update(p.id!, { lat: e.target.value ? Number(e.target.value) : undefined })} />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] font-bold text-on-surface-variant">경도 (Longitude)</label>
-                    <input type="number" step="any" className="input py-1 text-[13px]" placeholder="예: 126.9426" defaultValue={p.lng ?? ''}
-                      onChange={(e) => db.places.update(p.id!, { lng: e.target.value ? Number(e.target.value) : undefined })} />
-                  </div>
-                </div>
                 <textarea className="input text-[13px]" rows={3} placeholder="장소 안내 — 의미·유래·문화유산 선정 이유·학습 콘텐츠"
                   defaultValue={p.learn ?? ''} onChange={(e) => db.places.update(p.id!, { learn: e.target.value })} />
               </div>
@@ -177,6 +177,37 @@ function Places({ tripId }: { tripId: number }) {
           </li>
         ))}
       </ul>
+
+      {adding && (
+        <PlacePicker
+          title="장소 추가"
+          onClose={() => setAdding(false)}
+          onSave={async (v) => {
+            await db.places.add({
+              tripId, name: v.name, region: '', kind: 'sight', address: v.address || undefined,
+              ...(v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : {}),
+            });
+            setAdding(false);
+          }}
+        />
+      )}
+      {editing != null && editTarget && (
+        <PlacePicker
+          title="위치 찾기"
+          initialName={editTarget.name}
+          initialLat={editTarget.lat}
+          initialLng={editTarget.lng}
+          initialAddress={editTarget.address}
+          onClose={() => setEditing(null)}
+          onSave={async (v) => {
+            await db.places.update(editing, {
+              name: v.name, address: v.address || undefined,
+              ...(v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : {}),
+            });
+            setEditing(null);
+          }}
+        />
+      )}
     </div>
   );
 }

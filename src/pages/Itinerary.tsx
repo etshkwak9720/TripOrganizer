@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, isMealBand, orderSlots, hasContent, type Band, type Place, type Meal, type Photo } from '../db';
+import { db, isMealBand, orderSlots, hasContent, type Band, type Place, type Photo } from '../db';
 import { estimateTravelMinutes } from '../mock';
 import { Icon, TopBar, Screen, EmptyState } from '../ui';
 
@@ -16,12 +16,10 @@ export default function Itinerary() {
     [tripId, day],
   );
   const places = useLiveQuery(() => db.places.where('tripId').equals(tripId).toArray(), [tripId]);
-  const meals = useLiveQuery(() => db.meals.toArray(), []);
 
   if (!trip) return <Screen><EmptyState icon="error" title="여행을 찾을 수 없어요" /></Screen>;
 
   const placeById = (pid?: number | null) => places?.find((p) => p.id === pid);
-  const mealById = (mid?: number | null) => meals?.find((m) => m.id === mid);
 
   // filled slots for this day, in running order (a band may hold several)
   const ordered = orderSlots(slots ?? []).filter(hasContent);
@@ -65,7 +63,6 @@ export default function Itinerary() {
             <div className="space-y-4">
               {ordered.map((slot, i) => {
                 const place = placeById(slot.placeId);
-                const meal = mealById(slot.mealId);
                 const prev = ordered[i - 1];
                 const prevPlace = placeById(prev?.placeId);
                 const travel =
@@ -78,7 +75,7 @@ export default function Itinerary() {
                       </div>
                     )}
                     <TimelineItem band={slot.band} time={slot.plannedTime} place={place}
-                      activity={slot.activityText} meal={meal} mode={trip.mode} slotId={slot.id!} />
+                      activity={slot.activityText} mode={trip.mode} slotId={slot.id!} />
                   </div>
                 );
               })}
@@ -95,9 +92,9 @@ export default function Itinerary() {
 }
 
 function TimelineItem({
-  band, time, place, activity, meal, mode, slotId
+  band, time, place, activity, mode, slotId
 }: {
-  band: Band; time: string; place?: Place; activity?: string; meal?: Meal; mode: 'game' | 'relaxed'; slotId: number;
+  band: Band; time: string; place?: Place; activity?: string; mode: 'game' | 'relaxed'; slotId: number;
 }) {
   const isMeal = isMealBand(band);
   const [showLearn, setShowLearn] = useState(false);
@@ -116,12 +113,9 @@ function TimelineItem({
 
         {isMeal ? (
           <div>
-            <p className="font-head font-bold">{activity || (meal ? meal.name : '식사 내용이 없습니다.')}</p>
-            {meal && (
-              <p className="text-[12px] text-on-surface-variant mt-0.5">
-                추천: {meal.name} · {meal.category} · ⭐{meal.rating} ({meal.reviewCount.toLocaleString()})
-              </p>
-            )}
+            <p className="font-head font-bold">{place ? place.name : (activity || '식사 내용이 없습니다.')}</p>
+            {place && activity && <p className="text-[12px] text-on-surface-variant mt-0.5">메뉴: {activity}</p>}
+            {place?.region && <p className="text-[12px] text-on-surface-variant">{place.region}</p>}
           </div>
         ) : place ? (
           <div>

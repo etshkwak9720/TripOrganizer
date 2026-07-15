@@ -89,7 +89,7 @@ export default function ScheduleImport({ tripId, onClose }: { tripId: number; on
           }
           continue;
         }
-        byName.set(name, await db.places.add({ tripId, name, region: r.region, learn: r.learn || undefined }));
+        byName.set(name, await db.places.add({ tripId, name, region: r.region, kind: isMealBand(r.band) ? 'food' : 'sight', learn: r.learn || undefined }));
       }
 
       const counter = new Map<string, number>();
@@ -105,7 +105,6 @@ export default function ScheduleImport({ tripId, onClose }: { tripId: number; on
           order,
           placeId: r.place.trim() ? byName.get(r.place.trim())! : null,
           activityText: r.activity || '',
-          mealId: null,
         });
       }
       onClose();
