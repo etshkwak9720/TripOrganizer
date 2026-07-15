@@ -135,6 +135,55 @@ try {
 } catch (e) {
   check('조식 슬롯 placeId 연결', false, e.message);
 }
+
+// ---------- fill menu memo input ----------
+try {
+  const memoInput = page.locator('input[placeholder="메뉴 메모 (예: 꼬막비빔밥)"]').first();
+  check('메뉴 메모 입력 필드 노출', await memoInput.isVisible().catch(() => false));
+  await memoInput.fill('고기국수');
+  await page.waitForTimeout(500);
+} catch (e) {
+  check('메뉴 메모 입력 필드 노출', false, e.message);
+}
+
+// ---------- direct IndexedDB assertion ----------
+const readDB = (store) =>
+  page.evaluate((s) => new Promise((r) => {
+    const q = indexedDB.open('yeojeong');
+    q.onsuccess = () => { q.result.transaction(s).objectStore(s).getAll().onsuccess = (e) => r(e.target.result); };
+  }), store);
+
+try {
+  const places = await readDB('places');
+  const olePlace = places.find((p) => p.kind === 'food' && p.name === '올레국수');
+  const hasValidPlace = olePlace && typeof olePlace.lat === 'number' && typeof olePlace.lng === 'number';
+  check('DB: 식당 장소 생성 (kind=food, name, lat/lng)', hasValidPlace, hasValidPlace ? `place id=${olePlace.id}, lat=${olePlace.lat}, lng=${olePlace.lng}` : 'place not found or invalid');
+
+  const slots = await readDB('slots');
+  const breakfastSlot = slots.find((s) => s.band === '조식' && s.dayIndex === 0);
+  const slotLinked = breakfastSlot && breakfastSlot.placeId === olePlace?.id && breakfastSlot.activityText === '고기국수';
+  check('DB: 조식 슬롯 placeId + memo 연결', slotLinked, slotLinked ? `slot id=${breakfastSlot.id}, placeId=${breakfastSlot.placeId}, memo=${breakfastSlot.activityText}` : `slot placeId=${breakfastSlot?.placeId}, memo=${breakfastSlot?.activityText}`);
+} catch (e) {
+  check('DB: 식당 장소 생성 (kind=food, name, lat/lng)', false, e.message);
+  check('DB: 조식 슬롯 placeId + memo 연결', false, e.message);
+}
+
+// ---------- navigate to Itinerary and assert meal display ----------
+try {
+  await page.goto(`${BASE}/trip/${tripId}`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+
+  const itineraryText = await page.locator('main').innerText().catch(() => '');
+  const hasPlaceName = itineraryText.includes('올레국수');
+  check('일정(Itinerary): 식당명 표시', hasPlaceName);
+
+  const hasMenu = itineraryText.includes('메뉴: 고기국수');
+  check('일정(Itinerary): 메뉴 메모 표시', hasMenu);
+} catch (e) {
+  check('일정(Itinerary): 식당명 표시', false, e.message);
+  check('일정(Itinerary): 메뉴 메모 표시', false, e.message);
+}
+
 await browser.close();
 const pass = results.filter((r) => r.ok).length;
 console.log(`\n==== ${pass}/${results.length} PASS ====`);
