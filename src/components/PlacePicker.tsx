@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import type L from 'leaflet';
 import { geocodeSearch, type GeoCandidate } from '../geo';
 import { Icon } from '../ui';
@@ -10,6 +10,11 @@ export interface PickedPlace { name: string; address: string; lat?: number; lng?
 function Recenter({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => { map.setView([lat, lng], Math.max(map.getZoom(), 15)); }, [lat, lng, map]);
+  return null;
+}
+
+function ClickToMove({ onMove }: { onMove: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: (e) => onMove(e.latlng.lat, e.latlng.lng) });
   return null;
 }
 
@@ -26,16 +31,18 @@ export default function PlacePicker({ title, initialName, onSave, onClose }: {
   const [err, setErr] = useState(false);
   const [sel, setSel] = useState<{ lat: number; lng: number; address: string } | null>(null);
 
-  // debounced Nominatim search
+  // debounced Nominatim search (stale flag: a slow older response must not
+  // overwrite results of a newer query)
   useEffect(() => {
     if (q.trim().length < 2) { setCands([]); return; }
     setSearching(true); setErr(false);
+    let stale = false;
     const t = window.setTimeout(async () => {
-      try { setCands(await geocodeSearch(q.trim())); }
-      catch { setErr(true); setCands([]); }
-      finally { setSearching(false); }
+      try { const r = await geocodeSearch(q.trim()); if (!stale) setCands(r); }
+      catch { if (!stale) { setErr(true); setCands([]); } }
+      finally { if (!stale) setSearching(false); }
     }, 500);
-    return () => window.clearTimeout(t);
+    return () => { stale = true; window.clearTimeout(t); };
   }, [q]);
 
   function pick(c: GeoCandidate) {
@@ -72,6 +79,15 @@ export default function PlacePicker({ title, initialName, onSave, onClose }: {
           </ul>
         )}
 
+        {!sel && (
+          <button
+            className="btn-ghost w-full mt-2 text-[13px] flex items-center justify-center gap-1"
+            onClick={() => setSel({ lat: 36.5, lng: 127.8, address: '' })}
+          >
+            <Icon name="pin_drop" className="text-[16px]" /> 지도에서 직접 찍기
+          </button>
+        )}
+
         {sel && (
           <div className="mt-3">
             <div className="h-52 rounded-md overflow-hidden">
@@ -88,10 +104,11 @@ export default function PlacePicker({ title, initialName, onSave, onClose }: {
                   }}
                 />
                 <Recenter lat={sel.lat} lng={sel.lng} />
+                <ClickToMove onMove={(lat, lng) => setSel((s) => (s ? { ...s, lat, lng } : s))} />
               </MapContainer>
             </div>
             <p className="text-[11px] text-on-surface-variant mt-1">
-              <Icon name="pan_tool_alt" className="text-[13px] align-middle" /> 핀을 끌어 위치를 조정하세요 · {sel.lat.toFixed(5)}, {sel.lng.toFixed(5)}
+              <Icon name="pan_tool_alt" className="text-[13px] align-middle" /> 핀을 끌거나 지도를 탭해 위치를 조정하세요 · {sel.lat.toFixed(5)}, {sel.lng.toFixed(5)}
             </p>
           </div>
         )}
