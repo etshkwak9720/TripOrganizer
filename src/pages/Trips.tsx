@@ -8,6 +8,73 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Sunset over water, after the user's own photo: amber sky, layered ridges,
+// and the sun's reflection running down still water. Inline SVG rather than a
+// photo so it stays offline-safe and adds no payload.
+function HeaderBackdrop() {
+  return (
+    <div aria-hidden className="absolute inset-0 -z-10">
+      <svg viewBox="0 0 375 210" preserveAspectRatio="xMidYMax slice" className="absolute inset-0 w-full h-full">
+        <defs>
+          <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#e8801f" />
+            <stop offset="0.4" stopColor="#ffa445" />
+            <stop offset="0.75" stopColor="#ffc175" />
+            <stop offset="1" stopColor="#ffd89c" />
+          </linearGradient>
+          <linearGradient id="river" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#f5a24a" />
+            <stop offset="0.4" stopColor="#eeae6f" />
+            <stop offset="1" stopColor="#dcb894" />
+          </linearGradient>
+          <radialGradient id="dusksun">
+            <stop offset="0" stopColor="#fff4cf" stopOpacity="0.95" />
+            <stop offset="1" stopColor="#ffc266" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        <rect width="375" height="210" fill="url(#dusk)" />
+        {/* the sun sitting in the notch between ridges */}
+        <ellipse cx="196" cy="96" rx="86" ry="46" fill="url(#dusksun)" />
+
+        {/* wispy cloud streaks */}
+        <g fill="none" stroke="#ffffff" strokeOpacity="0.22" strokeWidth="2" strokeLinecap="round">
+          <path d="M18 26 q 42 -8 84 2" />
+          <path d="M6 44 q 30 -6 60 1" />
+          <path d="M244 34 q 40 -7 80 3" />
+        </g>
+
+        {/* far peaks, hazed by distance */}
+        <path d="M96 104 C 122 96, 138 84, 158 90 C 176 96, 188 82, 208 88 C 232 95, 252 86, 280 104 Z"
+          fill="#9a8fa6" fillOpacity="0.5" />
+        {/* the ridges either side, dropping to the notch the sun sits in */}
+        <path d="M0 74 C 30 72, 56 86, 78 96 C 92 102, 100 105, 112 107 L 112 114 L 0 114 Z" fill="#6b6376" fillOpacity="0.92" />
+        <path d="M375 70 C 344 68, 314 84, 290 95 C 276 101, 268 105, 258 107 L 258 114 L 375 114 Z" fill="#6b6376" fillOpacity="0.92" />
+        {/* treeline along the far bank */}
+        <path d="M0 108 q 26 -5 52 1 q 30 5 60 -2 q 32 -6 62 2 q 34 5 68 -3 q 36 -5 133 3 L375 116 L0 116 Z"
+          fill="#443e50" fillOpacity="0.88" />
+
+        {/* the water, and the sun's column running toward the viewer */}
+        <rect y="114" width="375" height="96" fill="url(#river)" />
+        <path d="M172 114 L220 114 L250 210 L142 210 Z" fill="#fff0c2" fillOpacity="0.4" />
+        <g fill="none" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1.5" strokeLinecap="round">
+          <path d="M8 124 q 40 -3 80 0 t 80 0 t 80 0 t 80 0" />
+          <path d="M0 140 q 46 -4 92 0 t 92 0 t 92 0" />
+          <path d="M14 158 q 52 -4 104 0 t 104 0 t 104 0" />
+          <path d="M0 180 q 58 -5 116 0 t 116 0 t 116 0" />
+        </g>
+        <g fill="none" stroke="#a06a3a" strokeOpacity="0.18" strokeWidth="1.5" strokeLinecap="round">
+          <path d="M0 132 q 44 -3 88 0 t 88 0 t 88 0" />
+          <path d="M20 168 q 50 -4 100 0 t 100 0" />
+        </g>
+
+      </svg>
+      {/* the heading sits on the brightest part of the sky; this keeps it legible */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/25 via-black/5 to-transparent" />
+    </div>
+  );
+}
+
 function isTripFinished(startDateStr: string, dayCount: number) {
   const startDate = new Date(startDateStr);
   if (isNaN(startDate.getTime())) return false;
@@ -170,10 +237,11 @@ export default function Trips() {
 
   return (
     <>
-      <header className="px-4 pt-6 pb-2">
-        <p className="text-emerald font-head font-bold text-[13px] tracking-wide">YEOJEONG · 여정</p>
-        <h1 className="font-head font-extrabold text-[28px] text-on-surface leading-tight">
-          함께 떠나는 여행,<br />계획부터 미션까지
+      <header className="relative isolate overflow-hidden px-4 pt-6 pb-24 mb-1">
+        <HeaderBackdrop />
+        <p className="text-white/80 font-head font-bold text-[13px] tracking-wide drop-shadow-sm">TripOrganizer</p>
+        <h1 className="font-head font-extrabold text-[28px] text-white leading-tight [text-shadow:0_1px_10px_rgb(0_0_0_/_35%)]">
+          같이 걷는 여정,<br />지도 위에 담다
         </h1>
       </header>
 

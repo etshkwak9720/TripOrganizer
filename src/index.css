@@ -19,7 +19,13 @@ body {
   max-width: 520px;
   margin: 0 auto;
   min-height: 100%;
-  background: #f8f9fa;
+  /* faint teal/tangerine wash so long, half-empty screens don't read as a
+     flat slab. Kept under 6% so card borders and text contrast are untouched. */
+  background:
+    radial-gradient(120% 55% at 100% 0%, rgba(0, 128, 128, 0.055), transparent 62%),
+    radial-gradient(95% 45% at 0% 100%, rgba(255, 140, 0, 0.05), transparent 68%),
+    #f8f9fa;
+  background-attachment: fixed;
   position: relative;
 }
 
