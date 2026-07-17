@@ -17,7 +17,8 @@
     "shots": "node scripts/shots.mjs",
     "icons": "node scripts/make-icons.mjs",
     "icons:subset": "python scripts/subset-icons.py",
-    "test:icons": "node scripts/smoke-icons.mjs"
+    "test:icons": "node scripts/smoke-icons.mjs",
+    "devlog": "node scripts/devlog.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.4",
