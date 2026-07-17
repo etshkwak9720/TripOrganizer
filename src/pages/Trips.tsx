@@ -8,69 +8,73 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Sunset over water, after the user's own photo: amber sky, layered ridges,
-// and the sun's reflection running down still water. Inline SVG rather than a
-// photo so it stays offline-safe and adds no payload.
+// A passenger jet climbing across a clear, sunlit sky — the app records many
+// kinds of trips, so the hero evokes departure rather than one destination.
+// Inline SVG, not a photo, so it stays offline-safe and adds no payload.
 function HeaderBackdrop() {
   return (
     <div aria-hidden className="absolute inset-0 -z-10">
-      <svg viewBox="0 0 375 210" preserveAspectRatio="xMidYMax slice" className="absolute inset-0 w-full h-full">
+      <svg viewBox="0 0 520 210" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full">
         <defs>
-          <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#e8801f" />
-            <stop offset="0.4" stopColor="#ffa445" />
-            <stop offset="0.75" stopColor="#ffc175" />
-            <stop offset="1" stopColor="#ffd89c" />
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#2f93d6" />
+            <stop offset="0.55" stopColor="#79bfe8" />
+            <stop offset="1" stopColor="#d6ecf8" />
           </linearGradient>
-          <linearGradient id="river" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f5a24a" />
-            <stop offset="0.4" stopColor="#eeae6f" />
-            <stop offset="1" stopColor="#dcb894" />
-          </linearGradient>
-          <radialGradient id="dusksun">
-            <stop offset="0" stopColor="#fff4cf" stopOpacity="0.95" />
-            <stop offset="1" stopColor="#ffc266" stopOpacity="0" />
+          <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stopColor="#fff8e6" stopOpacity="0.95" />
+            <stop offset="1" stopColor="#ffe9b0" stopOpacity="0" />
           </radialGradient>
         </defs>
 
-        <rect width="375" height="210" fill="url(#dusk)" />
-        {/* the sun sitting in the notch between ridges */}
-        <ellipse cx="196" cy="96" rx="86" ry="46" fill="url(#dusksun)" />
+        <rect width="520" height="210" fill="url(#sky)" />
+        {/* soft sun high on the right */}
+        <circle cx="430" cy="40" r="90" fill="url(#sun)" />
 
-        {/* wispy cloud streaks */}
-        <g fill="none" stroke="#ffffff" strokeOpacity="0.22" strokeWidth="2" strokeLinecap="round">
-          <path d="M18 26 q 42 -8 84 2" />
-          <path d="M6 44 q 30 -6 60 1" />
-          <path d="M244 34 q 40 -7 80 3" />
+        {/* wispy clouds, lightest near the horizon */}
+        <g fill="#ffffff">
+          <g opacity="0.9">
+            <ellipse cx="90" cy="150" rx="60" ry="16" />
+            <ellipse cx="130" cy="142" rx="42" ry="18" />
+            <ellipse cx="60" cy="145" rx="34" ry="14" />
+          </g>
+          <g opacity="0.7">
+            <ellipse cx="400" cy="168" rx="70" ry="15" />
+            <ellipse cx="445" cy="160" rx="40" ry="16" />
+          </g>
+          <g opacity="0.5">
+            <ellipse cx="250" cy="120" rx="46" ry="9" />
+          </g>
         </g>
 
-        {/* far peaks, hazed by distance */}
-        <path d="M96 104 C 122 96, 138 84, 158 90 C 176 96, 188 82, 208 88 C 232 95, 252 86, 280 104 Z"
-          fill="#9a8fa6" fillOpacity="0.5" />
-        {/* the ridges either side, dropping to the notch the sun sits in */}
-        <path d="M0 74 C 30 72, 56 86, 78 96 C 92 102, 100 105, 112 107 L 112 114 L 0 114 Z" fill="#6b6376" fillOpacity="0.92" />
-        <path d="M375 70 C 344 68, 314 84, 290 95 C 276 101, 268 105, 258 107 L 258 114 L 375 114 Z" fill="#6b6376" fillOpacity="0.92" />
-        {/* treeline along the far bank */}
-        <path d="M0 108 q 26 -5 52 1 q 30 5 60 -2 q 32 -6 62 2 q 34 5 68 -3 q 36 -5 133 3 L375 116 L0 116 Z"
-          fill="#443e50" fillOpacity="0.88" />
+        {/* contrail trailing back from the climbing jet */}
+        <path d="M150 168 C 230 150, 300 120, 360 86" fill="none"
+          stroke="#ffffff" strokeOpacity="0.5" strokeWidth="5" strokeLinecap="round" strokeDasharray="1 14" />
+        <path d="M170 166 C 245 148, 312 118, 368 84" fill="none"
+          stroke="#ffffff" strokeOpacity="0.35" strokeWidth="3" strokeLinecap="round" />
 
-        {/* the water, and the sun's column running toward the viewer */}
-        <rect y="114" width="375" height="96" fill="url(#river)" />
-        <path d="M172 114 L220 114 L250 210 L142 210 Z" fill="#fff0c2" fillOpacity="0.4" />
-        <g fill="none" stroke="#ffffff" strokeOpacity="0.3" strokeWidth="1.5" strokeLinecap="round">
-          <path d="M8 124 q 40 -3 80 0 t 80 0 t 80 0 t 80 0" />
-          <path d="M0 140 q 46 -4 92 0 t 92 0 t 92 0" />
-          <path d="M14 158 q 52 -4 104 0 t 104 0 t 104 0" />
-          <path d="M0 180 q 58 -5 116 0 t 116 0 t 116 0" />
-        </g>
-        <g fill="none" stroke="#a06a3a" strokeOpacity="0.18" strokeWidth="1.5" strokeLinecap="round">
-          <path d="M0 132 q 44 -3 88 0 t 88 0 t 88 0" />
-          <path d="M20 168 q 50 -4 100 0 t 100 0" />
+        {/* the jet, banking as it climbs to the upper right */}
+        <g transform="translate(372 78) rotate(-19)">
+          <g fill="#ffffff">
+            <path d="M44 0 C 39 -6 20 -7 -34 -6 C -45 -6 -49 -3 -49 0 C -49 3 -45 5 -34 5 C 20 6 39 5 44 0 Z" />
+            <path d="M-30 -5 L -46 -25 L -37 -25 L -22 -5 Z" />
+            <path d="M4 4 L -20 30 L -9 30 L 14 5 Z" />
+            <path d="M-30 -1 L -45 -12 L -38 -12 L -25 -2 Z" />
+          </g>
+          <path d="M4 4 L -20 30 L -14 30 L 9 5 Z" fill="#cfe0ec" />
+          {/* cockpit + a hint of a window line */}
+          <circle cx="38" cy="-1" r="2.2" fill="#bcd3e6" />
+          <g stroke="#dce8f2" strokeWidth="1.4" strokeLinecap="round">
+            <path d="M-24 -1 L 24 -1" strokeDasharray="1.5 4" />
+          </g>
         </g>
 
+        {/* two distant birds for scale */}
+        <g fill="none" stroke="#3d5566" strokeOpacity="0.4" strokeWidth="1.6" strokeLinecap="round">
+          <path d="M96 62 q 6 -5 12 0 q 6 -5 12 0" />
+          <path d="M120 78 q 5 -4 10 0 q 5 -4 10 0" />
+        </g>
       </svg>
-      {/* the heading sits on the brightest part of the sky; this keeps it legible */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/25 via-black/5 to-transparent" />
     </div>
   );
 }
@@ -124,7 +128,7 @@ function TripCard({
   onDelete: (id: number, title: string) => void;
 }) {
   return (
-    <li className="card p-4 relative group">
+    <li className="card card-shadow p-4 relative group">
       <div className="flex items-center gap-3">
         <Link to={`/trip/${trip.id}`} className="flex-1 min-w-0 flex items-center gap-3">
           <div className="w-12 h-12 rounded-md overflow-hidden shrink-0">
@@ -237,12 +241,14 @@ export default function Trips() {
 
   return (
     <>
-      <header className="relative isolate overflow-hidden px-4 pt-6 pb-24 mb-1">
+      <header className="relative isolate overflow-hidden px-4 pt-8 pb-8 mb-2">
         <HeaderBackdrop />
-        <p className="text-white/80 font-head font-bold text-[13px] tracking-wide drop-shadow-sm">TripOrganizer</p>
-        <h1 className="font-head font-extrabold text-[28px] text-white leading-tight [text-shadow:0_1px_10px_rgb(0_0_0_/_35%)]">
-          같이 걷는 여정,<br />지도 위에 담다
-        </h1>
+        <div className="glass-panel card-shadow rounded-xl px-4 py-3.5 inline-block">
+          <p className="text-emerald font-head font-bold text-[13px] tracking-wide">TripOrganizer</p>
+          <h1 className="font-head font-extrabold text-[27px] text-on-surface leading-tight">
+            같이 걷는 여정,<br />지도 위에 담다
+          </h1>
+        </div>
       </header>
 
       <Screen>

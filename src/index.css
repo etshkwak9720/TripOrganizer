@@ -41,4 +41,14 @@ body {
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Design-system patterns from Stitch: a frosted panel for text over imagery,
+     and a warm ambient shadow (outline-tinted, not black) for lifted cards. */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+  }
+  .card-shadow { box-shadow: 0 4px 16px rgba(137, 115, 98, 0.16); }
 }
