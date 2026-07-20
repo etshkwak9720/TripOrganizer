@@ -303,14 +303,18 @@ function CreateForm({ onClose }: { onClose: () => void }) {
   const nav = useNavigate();
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState(todayISO());
-  const [dayCount, setDayCount] = useState(2);
+  const [dayCountText, setDayCountText] = useState('2');
   const [mode, setMode] = useState<TripMode>('game');
+
+  function clampDayCount(v: string) {
+    return Math.max(1, Math.min(14, Number(v) || 1));
+  }
 
   async function create() {
     const id = await db.trips.add({
       title: title.trim() || '새 여행',
       startDate,
-      dayCount,
+      dayCount: clampDayCount(dayCountText),
       mode,
       createdAt: Date.now(),
     });
@@ -341,8 +345,9 @@ function CreateForm({ onClose }: { onClose: () => void }) {
           </div>
           <div className="w-24">
             <label className="field-label">일수</label>
-            <input type="number" min={1} max={14} className="input" value={dayCount}
-              onChange={(e) => setDayCount(Math.max(1, Math.min(14, Number(e.target.value) || 1)))} />
+            <input type="number" min={1} max={14} className="input" value={dayCountText}
+              onChange={(e) => setDayCountText(e.target.value)}
+              onBlur={(e) => setDayCountText(String(clampDayCount(e.target.value)))} />
           </div>
         </div>
 

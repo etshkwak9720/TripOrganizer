@@ -198,7 +198,7 @@ function Entry({ slot, band, places, index, canDelete }: {
           <input
             className="input text-[14px]"
             placeholder="메뉴 메모 (예: 꼬막비빔밥)"
-            value={slot.activityText ?? ''}
+            defaultValue={slot.activityText ?? ''}
             onChange={(e) => db.slots.update(slot.id!, { activityText: e.target.value })}
           />
         </div>
