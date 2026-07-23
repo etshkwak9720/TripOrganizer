@@ -2,10 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   shareKey, photosKey, countPhotosForPlace, MAX_PHOTOS_PER_PLACE,
   type ShareRecord, type PhotoMeta,
-} from '../../../src/share.ts';
-import { verifyPassword } from '../../_lib/hash.ts';
-import { kvClient } from '../../_lib/kv.ts';
-import { putPhoto } from '../../_lib/blob.ts';
+} from '../../../src/share.js';
+import { verifyPassword } from '../../_lib/hash.js';
+import { kvClient } from '../../_lib/kv.js';
+import { putPhoto } from '../../_lib/blob.js';
 
 async function authenticate(shareId: string, password: string | undefined): Promise<ShareRecord | null> {
   if (!password) return null;

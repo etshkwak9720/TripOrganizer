@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { shareKey, checkRateLimit, type ShareRecord } from '../../../src/share.ts';
-import { verifyPassword } from '../../_lib/hash.ts';
-import { kvClient } from '../../_lib/kv.ts';
+import { shareKey, checkRateLimit, type ShareRecord } from '../../../src/share.js';
+import { verifyPassword } from '../../_lib/hash.js';
+import { kvClient } from '../../_lib/kv.js';
 
 function clientIp(req: VercelRequest): string {
   const forwarded = req.headers['x-forwarded-for'];

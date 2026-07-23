@@ -1,5 +1,5 @@
 import { Redis } from 'ioredis';
-import type { KVClient } from '../../src/share.ts';
+import type { KVClient } from '../../src/share.js';
 
 // Vercel 마켓플레이스 Redis는 REST 자격증명(KV_REST_API_*) 없이 REDIS_URL만 제공하므로,
 // REST 기반인 @vercel/kv 대신 표준 Redis 프로토콜 클라이언트(ioredis)로 붙는다.

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { shareKey, type ShareRecord, type ShareSnapshot } from '../../src/share.ts';
-import { hashPassword, verifyPassword } from '../_lib/hash.ts';
-import { kvClient } from '../_lib/kv.ts';
+import { shareKey, type ShareRecord, type ShareSnapshot } from '../../src/share.js';
+import { hashPassword, verifyPassword } from '../_lib/hash.js';
+import { kvClient } from '../_lib/kv.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
