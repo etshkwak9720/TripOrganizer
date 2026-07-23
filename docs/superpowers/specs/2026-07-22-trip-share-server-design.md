@@ -129,9 +129,23 @@ photos/{shareId}/{photoId}.jpg
 
 ## 로컬 실행 준비물
 
-`vercel dev`로 `/api`를 로컬에서 띄우려면 먼저 Vercel 대시보드에서 KV·Blob 스토어를 생성하고
-`vercel env pull .env.local`로 자격 증명을 받아야 한다(1회성, 사람이 직접). 이후
-`vercel dev` → `npm run test:share:e2e` 순서로 검증한다.
+`vercel dev`로 `/api`를 로컬에서 띄우려면 Vercel 대시보드에서 스토어를 만들고 프로젝트에
+연결해야 한다(1회성, 사람이 직접). 이후 `vercel dev` → `npm run test:share:e2e` 순서로 검증
+(2026-07-23 실측 **9/9 PASS**). 실제로 겪은 함정 4가지:
+
+1. **Redis는 `@vercel/kv`가 아니라 `ioredis`로 붙는다.** Vercel 무료 Redis(마켓플레이스)는
+   REST 자격증명(`KV_REST_API_*`) 없이 `REDIS_URL`(`redis://` 프로토콜)만 준다. 그래서 REST
+   기반인 `@vercel/kv` 대신 `ioredis`로 연결한다(`api/_lib/kv.ts`). 값 직렬화는 JSON으로 처리.
+2. **`/api`를 SPA rewrite에서 제외해야 한다.** `vercel.json`의 catch-all rewrite가 `/api/*`까지
+   `index.html`로 돌려보내 함수가 안 잡힌다(HTML/500). 부정 룩어헤드에 `api/`를 추가한다.
+3. **Blob 스토어는 반드시 "Public"으로.** 참가자가 사진을 공개 URL로 보므로 `access: 'public'`
+   업로드가 필요하다. Private 스토어면 업로드가 거부된다(재생성 시 Public 선택).
+4. **Blob 토큰(sensitive)은 Development에 자동 주입이 안 된다.** `BLOB_READ_WRITE_TOKEN`은
+   민감 변수라 스토어 연결 시 Development 환경에 못 들어간다("sensitive cannot target
+   development"). 로컬 테스트를 위해선 토큰을 **수동으로** Development에 non-sensitive로 등록한다:
+   `vercel env add BLOB_READ_WRITE_TOKEN development` (값은 스토어 페이지의 `.env.local` 스니펫).
+   `vercel dev`는 `.env.local`이 아니라 **클라우드 프로젝트의 Development 환경**을 함수에 주입하므로,
+   `.env.local`에만 넣으면 함수가 못 본다.
 
 ## 후속 스펙에서 다룰 것
 
