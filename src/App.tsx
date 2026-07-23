@@ -10,6 +10,7 @@ import Itinerary from './pages/Itinerary';
 import Missions from './pages/Missions';
 import Live from './pages/Live';
 import Gallery from './pages/Gallery';
+import Join from './pages/Join';
 
 const TABS = [
   { key: 'live', label: '지금', icon: 'near_me', path: (id: string) => `/trip/${id}/live` },
@@ -71,6 +72,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Trips />} />
+        <Route path="/join/:shareId" element={<Join />} />
         <Route path="/trip/:id" element={<TripLayout><Itinerary /></TripLayout>} />
         <Route path="/trip/:id/setup" element={<TripLayout><Setup /></TripLayout>} />
         <Route path="/trip/:id/schedule" element={<TripLayout><Schedule /></TripLayout>} />
