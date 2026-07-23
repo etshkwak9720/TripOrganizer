@@ -127,6 +127,12 @@ photos/{shareId}/{photoId}.jpg
 
 `package.json`에 `test:share` 추가.
 
+## 로컬 실행 준비물
+
+`vercel dev`로 `/api`를 로컬에서 띄우려면 먼저 Vercel 대시보드에서 KV·Blob 스토어를 생성하고
+`vercel env pull .env.local`로 자격 증명을 받아야 한다(1회성, 사람이 직접). 이후
+`vercel dev` → `npm run test:share:e2e` 순서로 검증한다.
+
 ## 후속 스펙에서 다룰 것
 
 - 사진 원본 자동 삭제(슬라이드 제작 완료 시 + 유예기간 만료 시, 로드맵 5(a) "원본 사진의 수명"
