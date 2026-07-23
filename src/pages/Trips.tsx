@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type TripMode, type Trip, deleteTrip } from '../db';
+import { publishShare } from '../shareClient';
 import { Icon, Screen, EmptyState } from '../ui';
 
 function todayISO() {
@@ -148,6 +149,23 @@ function TripCard({
             </p>
           </div>
         </Link>
+
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            try {
+              const { url, password } = await publishShare(trip.id!);
+              await navigator.clipboard.writeText(`${url}\n비밀번호: ${password}`).catch(() => {});
+              alert(`공유 링크가 클립보드에 복사됐습니다:\n${url}\n비밀번호: ${password}`);
+            } catch (err) {
+              alert(err instanceof Error ? err.message : '공유에 실패했습니다');
+            }
+          }}
+          className="w-8 h-8 rounded-full grid place-items-center text-outline hover:text-primary-container hover:bg-primary-container/10 active:scale-95 transition shrink-0"
+          aria-label="여행 공유"
+        >
+          <Icon name="ios_share" className="text-[18px]" />
+        </button>
 
         <button
           onClick={(e) => {
