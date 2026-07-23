@@ -56,6 +56,13 @@ check('checkRateLimit: 한도 초과 시 거부', overLimit === false);
 const otherIp = await share.checkRateLimit(kv, 'trip1', '2.2.2.2');
 check('checkRateLimit: 다른 IP는 별도 카운트', otherIp === true);
 
+// --- hash.ts: bcrypt 라운드트립 ---
+const hashMod = await vite.ssrLoadModule('/api/_lib/hash.ts');
+const hash = await hashMod.hashPassword('제주도수학여행2026');
+check('hashPassword: 평문과 다름', hash !== '제주도수학여행2026');
+check('verifyPassword: 맞는 비번 통과', await hashMod.verifyPassword('제주도수학여행2026', hash) === true);
+check('verifyPassword: 틀린 비번 거부', await hashMod.verifyPassword('틀린비번', hash) === false);
+
 console.log(`\n==== ${pass}/${pass + fail} PASS ====`);
 if (fail > 0) console.log('FAILED count:', fail);
 await vite.close();
