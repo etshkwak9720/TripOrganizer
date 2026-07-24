@@ -4,6 +4,7 @@ import { BANDS, isMealBand, type Band } from '../db';
 import { Icon, Screen, TopBar } from '../ui';
 import type { ShareSnapshot } from '../share';
 import GalleryTab from './join/GalleryTab';
+import MissionTab from './join/MissionTab';
 
 export function storageKey(shareId: string) {
   return `share-password:${shareId}`;
@@ -98,7 +99,7 @@ export default function Join() {
       <main className="pb-20">
         {tab === 'plan' && <PlanTab schedule={schedule} />}
         {tab === 'gallery' && <GalleryTab shareId={shareId!} places={schedule.places} />}
-        {tab === 'mission' && <ComingSoon label="미션·랭킹은 곧 제공됩니다" icon="flag" />}
+        {tab === 'mission' && <MissionTab schedule={schedule} />}
         {tab === 'now' && <ComingSoon label="지금(위치·도착시간)은 곧 제공됩니다" icon="near_me" />}
       </main>
 

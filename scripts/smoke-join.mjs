@@ -8,10 +8,14 @@ const check = (name, ok, detail = '') => { results.push({ name, ok }); console.l
 
 const snapshot = {
   trip: { title: '스모크 참여여행', startDate: '2026-09-14', dayCount: 2, mode: 'game' },
-  members: [], groups: [],
+  members: [],
+  groups: [{ id: 1, name: 'A조' }, { id: 2, name: 'B조' }],
   places: [{ id: 1, name: '성산일출봉', region: '제주', kind: 'sight', lat: 33.4, lng: 126.9 }],
   slots: [{ dayIndex: 0, band: '오전', plannedTime: '09:00', order: 0, placeId: 1, activityText: '' }],
-  missions: [], missionResults: [], adjustments: [], awards: null,
+  missions: [{ id: 10, placeId: 1, title: '단체 사진 찍기', type: 'photo', points: 5, safe: true }],
+  missionResults: [{ missionId: 10, groupId: 1, done: true }],
+  adjustments: [{ groupId: 2, delta: 3, reason: '', ts: 1 }],
+  awards: { firstGroupReward: '간식 쏘기', lastGroupPenalty: '' },
 };
 
 // 내 소유 1장 + 타인 소유 1장 → 삭제 버튼은 내 사진에만 떠야 한다.
@@ -47,6 +51,13 @@ await page.waitForTimeout(400);
 check('갤러리에 사진 2장 표시', (await page.locator('main img').count()) === 2);
 check('내 사진에만 삭제 버튼(1개)', (await page.getByRole('button', { name: '삭제' }).count()) === 1);
 check('내 사진에만 교체 버튼(1개)', (await page.getByRole('button', { name: '교체' }).count()) === 1);
+await page.getByRole('button', { name: '미션' }).click();
+await page.waitForTimeout(300);
+const missionText = await page.locator('body').innerText();
+check('미션 탭: 랭킹 표시', missionText.includes('실시간 모둠 랭킹') && missionText.includes('A조'));
+check('미션 탭: 장소별 미션 표시', missionText.includes('단체 사진 찍기'));
+check('미션 탭: 읽기전용(관리자 버튼 없음)', (await page.getByRole('button', { name: '관리자' }).count()) === 0);
+
 await page.getByRole('button', { name: '지금' }).click();
 await page.waitForTimeout(200);
 check('지금 탭 자리표시자', (await page.locator('body').innerText()).includes('곧 제공'));
