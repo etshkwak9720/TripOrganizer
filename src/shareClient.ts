@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Trip } from './db.ts';
 import { genShareId, type ShareSnapshot } from './share.ts';
 
@@ -62,4 +64,38 @@ export async function publishShare(
 
   await db.trips.update(tripId, { shareId, sharePassword: password } satisfies Partial<Trip>);
   return { url: `${window.location.origin}/join/${shareId}`, password };
+}
+
+// 공유된 여행을 인솔자가 여는 동안, 관련 데이터 변경을 감지해 3초 디바운스 후 스냅샷을 재발행한다.
+// 참가자 화면이 GET으로 최신 스냅샷을 받아가 거의 실시간 반영된다.
+export function useAutoRepublish(tripId: number) {
+  const trip = useLiveQuery(() => db.trips.get(tripId), [tripId]);
+  const sig = useLiveQuery(async () => {
+    const [places, slots, groups, missions, results, adjustments, award] = await Promise.all([
+      db.places.where('tripId').equals(tripId).count(),
+      db.slots.where('tripId').equals(tripId).toArray(),
+      db.groups.where('tripId').equals(tripId).count(),
+      db.missions.where('tripId').equals(tripId).toArray(),
+      db.missionResults.where('tripId').equals(tripId).toArray(),
+      db.adjustments.where('tripId').equals(tripId).count(),
+      db.awards.get(tripId),
+    ]);
+    const slotSig = slots.map((s) => `${s.dayIndex}:${s.band}:${s.plannedTime}:${s.placeId}:${s.activityText}`).join('|');
+    const misSig = missions.map((m) => `${m.id}:${m.points}:${m.title}`).join('|');
+    const resSig = results.map((r) => `${r.missionId}:${r.groupId}:${r.done ? 1 : 0}`).join('|');
+    return `${places}|${groups}|${adjustments}|${slotSig}|${misSig}|${resSig}|${award?.firstGroupReward}|${award?.lastGroupPenalty}`;
+  }, [tripId]);
+
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const firstRef = useRef(true);
+
+  useEffect(() => {
+    if (!trip?.shareId || !trip?.sharePassword || sig === undefined) return;
+    // 최초 렌더는 건너뛴다(이미 발행된 상태). 이후 변경부터 재발행.
+    if (firstRef.current) { firstRef.current = false; return; }
+    clearTimeout(timerRef.current);
+    const pw = trip.sharePassword;
+    timerRef.current = setTimeout(() => { publishShare(tripId, pw).catch(() => {}); }, 3000);
+    return () => clearTimeout(timerRef.current);
+  }, [sig, trip?.shareId, trip?.sharePassword, tripId]);
 }
