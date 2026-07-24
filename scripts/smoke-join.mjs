@@ -14,17 +14,25 @@ const snapshot = {
   missions: [], missionResults: [], adjustments: [], awards: null,
 };
 
+// 내 소유 1장 + 타인 소유 1장 → 삭제 버튼은 내 사진에만 떠야 한다.
+const photos = [
+  { id: 'mine', placeId: 1, slotId: null, caption: '', ts: 1, blobUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', owner: 'test-owner' },
+  { id: 'other', placeId: 1, slotId: null, caption: '', ts: 2, blobUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', owner: 'someone-else' },
+];
+
 const browser = await chromium.launch();
 const page = await browser.newPage();
-await page.addInitScript((snap) => {
+await page.addInitScript((data) => {
+  const { snap, photos } = data;
+  localStorage.setItem('photo-owner', 'test-owner'); // 내 토큰 고정
   window.fetch = (url) => {
     const s = typeof url === 'string' ? url : url.url;
     if (s.includes('/verify')) return Promise.resolve(new Response(JSON.stringify({ schedule: snap }), { status: 200, headers: { 'content-type': 'application/json' } }));
-    if (s.endsWith('/photos')) return Promise.resolve(new Response(JSON.stringify({ photos: [] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    if (s.endsWith('/photos')) return Promise.resolve(new Response(JSON.stringify({ photos }), { status: 200, headers: { 'content-type': 'application/json' } }));
     if (s.includes('/api/share/')) return Promise.resolve(new Response(JSON.stringify({ schedule: snap }), { status: 200, headers: { 'content-type': 'application/json' } }));
     return Promise.resolve(new Response('{}', { status: 200 }));
   };
-}, snapshot);
+}, { snap: snapshot, photos });
 
 await page.goto(`${BASE}/join/smoke-join`, { waitUntil: 'networkidle' });
 await page.getByPlaceholder('여행 비밀번호').fill('1234');
@@ -35,8 +43,10 @@ check('입장 후 일정 탭에 장소 표시', await page.getByText('성산일�
 
 check('하단 탭 갤러리 노출(게임모드)', (await page.getByRole('button', { name: '갤러리' }).count()) > 0);
 await page.getByRole('button', { name: '갤러리' }).click();
-await page.waitForTimeout(300);
-check('갤러리 탭 전환됨', (await page.locator('body').innerText()).includes('갤러리 준비 중'));
+await page.waitForTimeout(400);
+check('갤러리에 사진 2장 표시', (await page.locator('main img').count()) === 2);
+check('내 사진에만 삭제 버튼(1개)', (await page.getByRole('button', { name: '삭제' }).count()) === 1);
+check('내 사진에만 교체 버튼(1개)', (await page.getByRole('button', { name: '교체' }).count()) === 1);
 await page.getByRole('button', { name: '지금' }).click();
 await page.waitForTimeout(200);
 check('지금 탭 자리표시자', (await page.locator('body').innerText()).includes('곧 제공'));
