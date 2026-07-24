@@ -50,7 +50,12 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
     );
     return () => navigator.geolocation.clearWatch(wid);
   }, []);
-  const pos = gps;
+  const adminPos = useMemo(() => {
+    return schedule.trip.adminLat != null && schedule.trip.adminLng != null
+      ? { lat: schedule.trip.adminLat, lng: schedule.trip.adminLng }
+      : null;
+  }, [schedule.trip.adminLat, schedule.trip.adminLng]);
+  const mainPos = adminPos || gps;
 
   // 하루 전체 경로(지도 표시용)
   const [dayRoute, setDayRoute] = useState<RouteResult | null>(null);
@@ -69,37 +74,62 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
   const lastArriveRef = useRef<number | null>(null);
   const leftTargetRef = useRef(false);
 
+  // 관리자 일차 & 목적지 동기화
   useEffect(() => {
-    setTargetIdx(0); setLeg(null); lastArriveRef.current = null; leftTargetRef.current = false;
+    if (schedule.trip.adminDayIndex != null && schedule.trip.adminDayIndex !== day) {
+      setDay(schedule.trip.adminDayIndex);
+    }
+  }, [schedule.trip.adminDayIndex, day]);
+
+  useEffect(() => {
+    if (schedule.trip.adminTargetIdx != null && schedule.trip.adminTargetIdx !== targetIdx) {
+      const prevTarget = coordStops[targetIdx];
+      if (prevTarget && schedule.trip.adminTargetIdx > targetIdx) {
+        setBanner(`📍 ${prevTarget.place.name} 도착! (${prevTarget.band} · ${prevTarget.time})`);
+        if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+        setTimeout(() => setBanner((b) => (b && b.includes(prevTarget.place.name) ? null : b)), 6000);
+      }
+      setTargetIdx(schedule.trip.adminTargetIdx);
+    }
+  }, [schedule.trip.adminTargetIdx, targetIdx, coordStops]);
+
+  useEffect(() => {
+    setLeg(null); lastArriveRef.current = null; leftTargetRef.current = false;
     legFetchRef.current = { t: 0, lat: 0, lng: 0, idx: -1 };
-  }, [day, coordsKey]);
+    if (schedule.trip.adminTargetIdx != null) {
+      setTargetIdx(schedule.trip.adminTargetIdx);
+    } else {
+      setTargetIdx(0);
+    }
+  }, [day, coordsKey, schedule.trip.adminTargetIdx]);
 
   const target = coordStops[targetIdx];
 
   useEffect(() => {
-    if (!pos || !target) { setLeg(null); return; }
+    if (!mainPos || !target) { setLeg(null); return; }
     const now = Date.now();
-    const moved = haversineKm(pos.lat, pos.lng, legFetchRef.current.lat, legFetchRef.current.lng);
+    const moved = haversineKm(mainPos.lat, mainPos.lng, legFetchRef.current.lat, legFetchRef.current.lng);
     if (targetIdx === legFetchRef.current.idx && now - legFetchRef.current.t < LEG_REFRESH_MS && moved < LEG_REFRESH_KM) return;
-    legFetchRef.current = { t: now, lat: pos.lat, lng: pos.lng, idx: targetIdx };
+    legFetchRef.current = { t: now, lat: mainPos.lat, lng: mainPos.lng, idx: targetIdx };
     let on = true;
     const dest = { lat: target.place.lat!, lng: target.place.lng! };
-    fetchRoute([{ lat: pos.lat, lng: pos.lng }, dest]).then((r) => {
+    fetchRoute([{ lat: mainPos.lat, lng: mainPos.lng }, dest]).then((r) => {
       if (!on) return;
       if (r) { setLeg(r); return; }
-      const km = haversineKm(pos.lat, pos.lng, dest.lat, dest.lng);
+      const km = haversineKm(mainPos.lat, mainPos.lng, dest.lat, dest.lng);
       setLeg({
-        coords: [[pos.lat, pos.lng], [dest.lat, dest.lng]],
-        durationMin: estimateTravelMinutes({ name: '현재 위치', lat: pos.lat, lng: pos.lng }, target.place),
+        coords: [[mainPos.lat, mainPos.lng], [dest.lat, dest.lng]],
+        durationMin: estimateTravelMinutes({ name: '현재 위치', lat: mainPos.lat, lng: mainPos.lng }, target.place),
         distanceKm: km, estimated: true,
       });
     });
     return () => { on = false; };
-  }, [pos?.lat, pos?.lng, targetIdx, coordsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mainPos?.lat, mainPos?.lng, targetIdx, coordsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 학생 자체 GPS 도착 감지 (관리자 위치 비활성화 시 폴백 동작)
   useEffect(() => {
-    if (!pos || !target) return;
-    const d = haversineKm(pos.lat, pos.lng, target.place.lat!, target.place.lng!);
+    if (adminPos || !gps || !target) return;
+    const d = haversineKm(gps.lat, gps.lng, target.place.lat!, target.place.lng!);
     if (d >= ARRIVE_KM) { leftTargetRef.current = true; return; }
     if (lastArriveRef.current === target.place.id) return;
     lastArriveRef.current = target.place.id;
@@ -110,7 +140,7 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
     }
     leftTargetRef.current = false;
     if (targetIdx < coordStops.length - 1) setTargetIdx(targetIdx + 1);
-  }, [pos, target, targetIdx, coordStops.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gps, target, targetIdx, coordStops.length, adminPos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const done = coordStops.length > 0 && targetIdx >= coordStops.length - 1 && lastArriveRef.current === coordStops[coordStops.length - 1]?.place.id;
   const etaClock = leg ? clockPlus(leg.durationMin) : null;
@@ -141,8 +171,9 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
                 stops={coordStops.map((s) => ({ name: s.place.name, lat: s.place.lat!, lng: s.place.lng!, food: s.place.kind === 'food' }))}
                 route={dayRoute?.coords ?? null}
                 leg={leg?.coords ?? null}
-                pos={pos}
+                pos={gps}
                 targetIdx={targetIdx}
+                adminPos={adminPos}
               />
             </div>
 
@@ -151,7 +182,7 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
                 <p className="text-[13px] text-error font-semibold flex items-center gap-1"><Icon name="location_off" className="text-[16px]" /> 위치 권한을 허용하면 도착 시간이 표시돼요</p>
               ) : done ? (
                 <div className="text-center py-3"><Icon name="celebration" className="text-[40px] text-primary-container" /><p className="font-head font-bold mt-1">오늘 일정 완료!</p></div>
-              ) : !pos ? (
+              ) : !mainPos ? (
                 <p className="text-[13px] text-on-surface-variant">위치를 가져오는 중… 권한을 허용해 주세요.</p>
               ) : target ? (
                 <div>

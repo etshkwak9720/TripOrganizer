@@ -29,7 +29,12 @@ export function attemptsKey(shareId: string, ip: string): string {
 }
 
 export type ShareSnapshot = {
-  trip: Pick<Trip, 'title' | 'startDate' | 'dayCount' | 'mode'>;
+  trip: Pick<Trip, 'title' | 'startDate' | 'dayCount' | 'mode'> & {
+    adminLat?: number;
+    adminLng?: number;
+    adminTargetIdx?: number;
+    adminDayIndex?: number;
+  };
   members: Pick<Member, 'name' | 'groupId'>[];
   // id를 보존해 랭킹/미션 결과가 어느 그룹을 가리키는지 참가자 화면에서 찾을 수 있게 한다.
   groups: (Pick<Group, 'name'> & { id: number })[];

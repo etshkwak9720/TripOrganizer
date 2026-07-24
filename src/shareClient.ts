@@ -20,7 +20,16 @@ export async function buildShareSnapshot(tripId: number): Promise<ShareSnapshot>
     ]);
 
   return {
-    trip: { title: trip.title, startDate: trip.startDate, dayCount: trip.dayCount, mode: trip.mode },
+    trip: {
+      title: trip.title,
+      startDate: trip.startDate,
+      dayCount: trip.dayCount,
+      mode: trip.mode,
+      adminLat: trip.adminLat,
+      adminLng: trip.adminLng,
+      adminTargetIdx: trip.adminTargetIdx,
+      adminDayIndex: trip.adminDayIndex,
+    },
     members: members.map((m) => ({ name: m.name, groupId: m.groupId })),
     groups: groups.map((g) => ({ id: g.id!, name: g.name })),
     places: places.map((p) => ({
@@ -71,7 +80,7 @@ export async function publishShare(
 export function useAutoRepublish(tripId: number) {
   const trip = useLiveQuery(() => db.trips.get(tripId), [tripId]);
   const sig = useLiveQuery(async () => {
-    const [places, slots, groups, missions, results, adjustments, award] = await Promise.all([
+    const [places, slots, groups, missions, results, adjustments, award, trip] = await Promise.all([
       db.places.where('tripId').equals(tripId).count(),
       db.slots.where('tripId').equals(tripId).toArray(),
       db.groups.where('tripId').equals(tripId).count(),
@@ -79,11 +88,12 @@ export function useAutoRepublish(tripId: number) {
       db.missionResults.where('tripId').equals(tripId).toArray(),
       db.adjustments.where('tripId').equals(tripId).count(),
       db.awards.get(tripId),
+      db.trips.get(tripId),
     ]);
     const slotSig = slots.map((s) => `${s.dayIndex}:${s.band}:${s.plannedTime}:${s.placeId}:${s.activityText}`).join('|');
     const misSig = missions.map((m) => `${m.id}:${m.points}:${m.title}`).join('|');
     const resSig = results.map((r) => `${r.missionId}:${r.groupId}:${r.done ? 1 : 0}`).join('|');
-    return `${places}|${groups}|${adjustments}|${slotSig}|${misSig}|${resSig}|${award?.firstGroupReward}|${award?.lastGroupPenalty}`;
+    return `${places}|${groups}|${adjustments}|${slotSig}|${misSig}|${resSig}|${award?.firstGroupReward}|${award?.lastGroupPenalty}|${trip?.adminLat}|${trip?.adminLng}|${trip?.adminTargetIdx}|${trip?.adminDayIndex}`;
   }, [tripId]);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

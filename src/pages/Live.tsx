@@ -153,6 +153,44 @@ export default function Live() {
     if (targetIdx < coordStops.length - 1) setTargetIdx(targetIdx + 1);
   }, [pos, target, targetIdx, coordStops.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 인솔자(관리자)의 실시간 위치 & 상태 정보를 DB에 저장 (학생 모드 동기화용)
+  useEffect(() => {
+    if (!tripId || !pos) return;
+    const updateAdminStatus = async () => {
+      const currentTrip = await db.trips.get(tripId);
+      if (!currentTrip) return;
+      
+      const prevLat = currentTrip.adminLat;
+      const prevLng = currentTrip.adminLng;
+      const prevTargetIdx = currentTrip.adminTargetIdx;
+      const prevDayIndex = currentTrip.adminDayIndex;
+
+      let distanceChanged = true;
+      if (prevLat != null && prevLng != null) {
+        const dist = haversineKm(pos.lat, pos.lng, prevLat, prevLng);
+        // 5m 미만 미세 이동은 무시
+        if (dist < 0.005) distanceChanged = false;
+      }
+
+      if (
+        distanceChanged ||
+        prevTargetIdx !== targetIdx ||
+        prevDayIndex !== day
+      ) {
+        await db.trips.update(tripId, {
+          adminLat: pos.lat,
+          adminLng: pos.lng,
+          adminTargetIdx: targetIdx,
+          adminDayIndex: day,
+        });
+      }
+    };
+    
+    // 2초 디바운스로 잦은 DB 쓰기 방지
+    const timer = setTimeout(updateAdminStatus, 2000);
+    return () => clearTimeout(timer);
+  }, [pos?.lat, pos?.lng, targetIdx, day, tripId]);
+
   function fireAlert(msg: string) {
     setBanner(msg);
     if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
