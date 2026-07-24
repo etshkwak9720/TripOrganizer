@@ -5,24 +5,36 @@ export async function buildShareSnapshot(tripId: number): Promise<ShareSnapshot>
   const trip = await db.trips.get(tripId);
   if (!trip) throw new Error(`trip ${tripId} not found`);
 
-  const [members, groups, places, slots] = await Promise.all([
-    db.members.where('tripId').equals(tripId).toArray(),
-    db.groups.where('tripId').equals(tripId).toArray(),
-    db.places.where('tripId').equals(tripId).toArray(),
-    db.slots.where('tripId').equals(tripId).toArray(),
-  ]);
+  const [members, groups, places, slots, missions, missionResults, adjustments, award] =
+    await Promise.all([
+      db.members.where('tripId').equals(tripId).toArray(),
+      db.groups.where('tripId').equals(tripId).toArray(),
+      db.places.where('tripId').equals(tripId).toArray(),
+      db.slots.where('tripId').equals(tripId).toArray(),
+      db.missions.where('tripId').equals(tripId).toArray(),
+      db.missionResults.where('tripId').equals(tripId).toArray(),
+      db.adjustments.where('tripId').equals(tripId).toArray(),
+      db.awards.get(tripId),
+    ]);
 
   return {
     trip: { title: trip.title, startDate: trip.startDate, dayCount: trip.dayCount, mode: trip.mode },
     members: members.map((m) => ({ name: m.name, groupId: m.groupId })),
-    groups: groups.map((g) => ({ name: g.name, score: g.score })),
+    groups: groups.map((g) => ({ id: g.id!, name: g.name })),
     places: places.map((p) => ({
-      id: p.id!, name: p.name, region: p.region, kind: p.kind, address: p.address, lat: p.lat, lng: p.lng,
+      id: p.id!, name: p.name, region: p.region, kind: p.kind,
+      address: p.address, lat: p.lat, lng: p.lng, learn: p.learn,
     })),
     slots: slots.map((s) => ({
       dayIndex: s.dayIndex, band: s.band, plannedTime: s.plannedTime,
       order: s.order, placeId: s.placeId, activityText: s.activityText,
     })),
+    missions: missions.map((m) => ({
+      id: m.id!, placeId: m.placeId, title: m.title, type: m.type, points: m.points, safe: m.safe,
+    })),
+    missionResults: missionResults.map((r) => ({ missionId: r.missionId, groupId: r.groupId, done: r.done })),
+    adjustments: adjustments.map((a) => ({ groupId: a.groupId, delta: a.delta, reason: a.reason, ts: a.ts })),
+    awards: award ? { firstGroupReward: award.firstGroupReward, lastGroupPenalty: award.lastGroupPenalty } : null,
   };
 }
 
