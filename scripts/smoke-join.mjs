@@ -25,12 +25,17 @@ const photos = [
 ];
 
 const browser = await chromium.launch();
-const page = await browser.newPage();
+const context = await browser.newContext({
+  geolocation: { latitude: 33.41, longitude: 126.91 }, // 성산일출봉(33.4,126.9) 근처, 80m 밖
+  permissions: ['geolocation'],
+});
+const page = await context.newPage();
 await page.addInitScript((data) => {
   const { snap, photos } = data;
   localStorage.setItem('photo-owner', 'test-owner'); // 내 토큰 고정
   window.fetch = (url) => {
     const s = typeof url === 'string' ? url : url.url;
+    if (s.includes('router.project-osrm.org')) return Promise.resolve(new Response('{}', { status: 500 }));
     if (s.includes('/verify')) return Promise.resolve(new Response(JSON.stringify({ schedule: snap }), { status: 200, headers: { 'content-type': 'application/json' } }));
     if (s.endsWith('/photos')) return Promise.resolve(new Response(JSON.stringify({ photos }), { status: 200, headers: { 'content-type': 'application/json' } }));
     if (s.includes('/api/share/')) return Promise.resolve(new Response(JSON.stringify({ schedule: snap }), { status: 200, headers: { 'content-type': 'application/json' } }));
@@ -59,8 +64,10 @@ check('미션 탭: 장소별 미션 표시', missionText.includes('단체 사진
 check('미션 탭: 읽기전용(관리자 버튼 없음)', (await page.getByRole('button', { name: '관리자' }).count()) === 0);
 
 await page.getByRole('button', { name: '지금' }).click();
-await page.waitForTimeout(200);
-check('지금 탭 자리표시자', (await page.locator('body').innerText()).includes('곧 제공'));
+await page.waitForTimeout(1500);
+const nowText = await page.locator('body').innerText();
+check('지금 탭: 오늘의 동선 표시', nowText.includes('오늘의 동선') && nowText.includes('성산일출봉'));
+check('지금 탭: 지도 렌더', (await page.locator('.leaflet-container').count()) > 0);
 
 await browser.close();
 const pass = results.filter((r) => r.ok).length;

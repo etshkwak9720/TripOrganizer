@@ -5,6 +5,7 @@ import { Icon, Screen, TopBar } from '../ui';
 import type { ShareSnapshot } from '../share';
 import GalleryTab from './join/GalleryTab';
 import MissionTab from './join/MissionTab';
+import NowTab from './join/NowTab';
 
 export function storageKey(shareId: string) {
   return `share-password:${shareId}`;
@@ -100,7 +101,7 @@ export default function Join() {
         {tab === 'plan' && <PlanTab schedule={schedule} />}
         {tab === 'gallery' && <GalleryTab shareId={shareId!} places={schedule.places} />}
         {tab === 'mission' && <MissionTab schedule={schedule} />}
-        {tab === 'now' && <ComingSoon label="지금(위치·도착시간)은 곧 제공됩니다" icon="near_me" />}
+        {tab === 'now' && <NowTab schedule={schedule} />}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[520px] bg-surface border-t border-outline-variant/30 z-40"
@@ -157,13 +158,3 @@ function PlanTab({ schedule }: { schedule: ShareSnapshot }) {
   );
 }
 
-function ComingSoon({ label, icon }: { label: string; icon: string }) {
-  return (
-    <Screen>
-      <div className="flex flex-col items-center justify-center text-center py-16 text-on-surface-variant">
-        <Icon name={icon} className="text-[44px] text-outline mb-2" />
-        <p className="text-[14px]">{label}</p>
-      </div>
-    </Screen>
-  );
-}
