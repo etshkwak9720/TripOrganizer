@@ -63,6 +63,21 @@ check('hashPassword: 평문과 다름', hash !== '제주도수학여행2026');
 check('verifyPassword: 맞는 비번 통과', await hashMod.verifyPassword('제주도수학여행2026', hash) === true);
 check('verifyPassword: 틀린 비번 거부', await hashMod.verifyPassword('틀린비번', hash) === false);
 
+// --- computeRanking ---
+const groups = [{ id: 1, name: 'A조' }, { id: 2, name: 'B조' }, { id: 3, name: 'C조' }];
+const rankMissions = [{ id: 10, points: 5 }, { id: 11, points: 3 }];
+const rankResults = [
+  { missionId: 10, groupId: 1, done: true },   // A +5
+  { missionId: 11, groupId: 1, done: true },   // A +3 => 8
+  { missionId: 10, groupId: 2, done: true },   // B +5
+  { missionId: 11, groupId: 2, done: false },  // (미완료, 무시)
+];
+const rankAdjustments = [{ groupId: 2, delta: 10 }, { groupId: 3, delta: -2 }]; // B +10 => 15, C -2
+const ranked = share.computeRanking(groups, rankMissions, rankResults, rankAdjustments);
+check('computeRanking: 1위는 B조(15점)', ranked[0].group.id === 2 && ranked[0].score === 15);
+check('computeRanking: 2위는 A조(8점)', ranked[1].group.id === 1 && ranked[1].score === 8);
+check('computeRanking: 3위는 C조(-2점)', ranked[2].group.id === 3 && ranked[2].score === -2);
+
 console.log(`\n==== ${pass}/${pass + fail} PASS ====`);
 if (fail > 0) console.log('FAILED count:', fail);
 await vite.close();

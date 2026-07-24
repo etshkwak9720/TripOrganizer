@@ -1,4 +1,4 @@
-import type { Place, Slot, Member, Group, Trip } from './db.ts';
+import type { Place, Slot, Member, Group, Trip, Mission, MissionResult, Adjustment, Award } from './db.ts';
 
 export interface KVClient {
   get<T = unknown>(key: string): Promise<T | null>;
@@ -31,11 +31,16 @@ export function attemptsKey(shareId: string, ip: string): string {
 export type ShareSnapshot = {
   trip: Pick<Trip, 'title' | 'startDate' | 'dayCount' | 'mode'>;
   members: Pick<Member, 'name' | 'groupId'>[];
-  groups: Pick<Group, 'name' | 'score'>[];
-  // id를 보존해야 slots[].placeId가 이 배열의 어느 장소를 가리키는지 참가자 화면에서 찾을 수 있다
+  // id를 보존해 랭킹/미션 결과가 어느 그룹을 가리키는지 참가자 화면에서 찾을 수 있게 한다.
+  groups: (Pick<Group, 'name'> & { id: number })[];
+  // id를 보존해야 slots[].placeId가 이 배열의 어느 장소를 가리키는지 찾을 수 있다
   // (로컬 Dexie PK 그대로 — 배열 인덱스가 아님).
-  places: (Pick<Place, 'name' | 'region' | 'kind' | 'address' | 'lat' | 'lng'> & { id: number })[];
+  places: (Pick<Place, 'name' | 'region' | 'kind' | 'address' | 'lat' | 'lng' | 'learn'> & { id: number })[];
   slots: Pick<Slot, 'dayIndex' | 'band' | 'plannedTime' | 'order' | 'placeId' | 'activityText'>[];
+  missions: (Pick<Mission, 'placeId' | 'title' | 'type' | 'points' | 'safe'> & { id: number })[];
+  missionResults: Pick<MissionResult, 'missionId' | 'groupId' | 'done'>[];
+  adjustments: Pick<Adjustment, 'groupId' | 'delta' | 'reason' | 'ts'>[];
+  awards: Pick<Award, 'firstGroupReward' | 'lastGroupPenalty'> | null;
 };
 
 export interface ShareRecord {
@@ -61,4 +66,22 @@ export async function checkRateLimit(kv: KVClient, shareId: string, ip: string):
 
 export function countPhotosForPlace(photos: PhotoMeta[], placeId: number | null): number {
   return photos.filter((p) => p.placeId === placeId).length;
+}
+
+export function computeRanking(
+  groups: { id: number; name: string }[],
+  missions: { id: number; points: number }[],
+  missionResults: { missionId: number; groupId: number; done: boolean }[],
+  adjustments: { groupId: number; delta: number }[],
+): { group: { id: number; name: string }; score: number }[] {
+  const points = new Map(missions.map((m) => [m.id, m.points]));
+  const scoreOf = (gid: number) => {
+    let s = 0;
+    for (const r of missionResults) if (r.groupId === gid && r.done) s += points.get(r.missionId) ?? 0;
+    for (const a of adjustments) if (a.groupId === gid) s += a.delta;
+    return s;
+  };
+  return groups
+    .map((g) => ({ group: g, score: scoreOf(g.id) }))
+    .sort((a, b) => b.score - a.score);
 }
