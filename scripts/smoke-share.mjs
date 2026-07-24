@@ -14,6 +14,7 @@ const schedule = {
   members: [], groups: [],
   places: [{ id: 1, name: '테스트 장소', region: '제주', kind: 'sight', lat: 33.4, lng: 126.9 }],
   slots: [{ dayIndex: 0, band: '오전', plannedTime: '10:00', order: 0, placeId: 1, activityText: '' }],
+  missions: [], missionResults: [], adjustments: [], awards: null,
 };
 
 // 1. 공유(최초)
@@ -38,6 +39,13 @@ res = await fetch(`${BASE}/api/share/${shareId}/verify`, {
 check('참가자 비번 검증 성공', res.ok);
 const verifyBody = await res.json();
 check('스냅샷 일치', verifyBody.schedule?.trip?.title === '스모크 테스트 여행');
+
+// 3b. GET 스냅샷 조회 (헤더 비번)
+res = await fetch(`${BASE}/api/share/${shareId}`, { headers: { 'x-trip-password': password } });
+const getBody = await res.json();
+check('GET 스냅샷 조회 성공', res.ok && getBody.schedule?.trip?.title === '스모크 테스트 여행');
+res = await fetch(`${BASE}/api/share/${shareId}`, { headers: { 'x-trip-password': 'wrong' } });
+check('GET 오답 비번 거부', res.status === 401);
 
 // 4. 참가자 비번 검증 (오답)
 res = await fetch(`${BASE}/api/share/${shareId}/verify`, {
