@@ -27,15 +27,16 @@ export async function buildShareSnapshot(tripId: number): Promise<ShareSnapshot>
 }
 
 // 처음 공유하거나, 이미 공유된 여행을 다시 공유(갱신)할 때 호출한다.
-// 반환값은 참가자에게 보낼 URL.
-export async function publishShare(tripId: number): Promise<{ url: string; password: string }> {
+// 비밀번호는 호출부(공유 모달)에서 받아 넘긴다. 반환값은 참가자에게 보낼 URL.
+export async function publishShare(
+  tripId: number,
+  password: string,
+): Promise<{ url: string; password: string }> {
   const trip = await db.trips.get(tripId);
   if (!trip) throw new Error(`trip ${tripId} not found`);
-
-  const shareId = trip.shareId ?? genShareId();
-  const password = trip.sharePassword ?? window.prompt('여행 비밀번호를 설정하세요 (참가자와 공유할 값)') ?? '';
   if (!password) throw new Error('비밀번호가 필요합니다');
 
+  const shareId = trip.shareId ?? genShareId();
   const schedule = await buildShareSnapshot(tripId);
   const res = await fetch(`/api/share/${shareId}`, {
     method: 'POST',
