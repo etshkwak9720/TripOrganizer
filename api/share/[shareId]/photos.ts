@@ -5,7 +5,7 @@ import {
 } from '../../../src/share.js';
 import { verifyPassword } from '../../_lib/hash.js';
 import { kvClient } from '../../_lib/kv.js';
-import { putPhoto } from '../../_lib/blob.js';
+import { putPhoto, delPhoto } from '../../_lib/blob.js';
 
 async function authenticate(shareId: string, password: string | undefined): Promise<ShareRecord | null> {
   if (!password) return null;
@@ -42,6 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       caption?: string;
       fileBase64?: string;
       contentType?: string;
+      owner?: string;
     };
     const record = await authenticate(shareId, body.password);
     if (!record) {
@@ -67,10 +68,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const meta: PhotoMeta = {
       id, placeId, slotId: body.slotId ?? null,
-      caption: body.caption ?? '', ts: Date.now(), blobUrl: url,
+      caption: body.caption ?? '', ts: Date.now(), blobUrl: url, owner: body.owner,
     };
     await kvClient.set(photosKey(shareId), [...photos, meta]);
     res.status(200).json({ photo: meta });
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    const body = (req.body ?? {}) as { password?: string; id?: string; owner?: string };
+    const record = await authenticate(shareId, body.password);
+    if (!record) {
+      res.status(401).json({ error: '비밀번호가 틀렸습니다' });
+      return;
+    }
+    const photos = (await kvClient.get<PhotoMeta[]>(photosKey(shareId))) ?? [];
+    const target = photos.find((p) => p.id === body.id);
+    if (!target) {
+      res.status(404).json({ error: '사진을 찾을 수 없습니다' });
+      return;
+    }
+    if (!target.owner || target.owner !== body.owner) {
+      res.status(403).json({ error: '본인이 올린 사진만 삭제할 수 있습니다' });
+      return;
+    }
+    await delPhoto(target.blobUrl).catch(() => {});
+    await kvClient.set(photosKey(shareId), photos.filter((p) => p.id !== body.id));
+    res.status(200).json({ ok: true });
     return;
   }
 

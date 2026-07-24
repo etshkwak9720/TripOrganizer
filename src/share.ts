@@ -56,6 +56,7 @@ export interface PhotoMeta {
   caption: string;
   ts: number;
   blobUrl: string;
+  owner?: string; // 업로더 기기 토큰 — 본인 사진만 삭제 가능
 }
 
 export async function checkRateLimit(kv: KVClient, shareId: string, ip: string): Promise<boolean> {

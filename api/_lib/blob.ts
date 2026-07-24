@@ -1,4 +1,8 @@
-import { put } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
+
+export async function delPhoto(url: string): Promise<void> {
+  await del(url);
+}
 
 export async function putPhoto(
   shareId: string,

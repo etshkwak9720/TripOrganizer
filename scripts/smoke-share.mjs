@@ -58,25 +58,39 @@ check('오답 비번 거부', res.status === 401);
 const tinyPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 res = await fetch(`${BASE}/api/share/${shareId}/photos`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ password, placeId: 1, caption: '', fileBase64: tinyPngBase64, contentType: 'image/png' }),
+  body: JSON.stringify({ password, placeId: 1, caption: '', fileBase64: tinyPngBase64, contentType: 'image/png', owner: 'owner-A' }),
 });
 check('사진 업로드 성공', res.ok, `status=${res.status}`);
+const uploaded = (await res.json()).photo;
 
 // 6. 사진 목록 조회
 res = await fetch(`${BASE}/api/share/${shareId}/photos`, { headers: { 'x-trip-password': password } });
 const photosBody = await res.json();
 check('업로드한 사진이 목록에 반영됨', photosBody.photos?.length === 1);
 
-// 7. 장소당 4장 상한
-for (let i = 0; i < 3; i++) {
+// 6b. 타인 소유 토큰으로 삭제 시도 → 403
+res = await fetch(`${BASE}/api/share/${shareId}/photos`, {
+  method: 'DELETE', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ password, id: uploaded.id, owner: 'owner-B' }),
+});
+check('타인 사진 삭제 거부(403)', res.status === 403);
+// 6c. 본인 토큰으로 삭제 → 성공
+res = await fetch(`${BASE}/api/share/${shareId}/photos`, {
+  method: 'DELETE', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ password, id: uploaded.id, owner: 'owner-A' }),
+});
+check('본인 사진 삭제 성공', res.ok);
+
+// 7. 장소당 4장 상한 (삭제로 비었으니 4장 채운 뒤 5번째가 거부)
+for (let i = 0; i < 4; i++) {
   await fetch(`${BASE}/api/share/${shareId}/photos`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ password, placeId: 1, caption: '', fileBase64: tinyPngBase64, contentType: 'image/png' }),
+    body: JSON.stringify({ password, placeId: 1, caption: '', fileBase64: tinyPngBase64, contentType: 'image/png', owner: 'owner-A' }),
   });
 }
 res = await fetch(`${BASE}/api/share/${shareId}/photos`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ password, placeId: 1, caption: '', fileBase64: tinyPngBase64, contentType: 'image/png' }),
+  body: JSON.stringify({ password, placeId: 1, caption: '', fileBase64: tinyPngBase64, contentType: 'image/png', owner: 'owner-A' }),
 });
 check('장소당 4장 초과 시 거부', res.status === 400);
 
