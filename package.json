@@ -19,6 +19,7 @@
     "test:share:e2e": "node scripts/smoke-share.mjs",
     "test:share:ui": "node scripts/smoke-share-ui.mjs",
     "test:republish": "node scripts/smoke-republish.mjs",
+    "test:join": "node scripts/smoke-join.mjs",
     "shots": "node scripts/shots.mjs",
     "icons": "node scripts/make-icons.mjs",
     "icons:subset": "python scripts/subset-icons.py",

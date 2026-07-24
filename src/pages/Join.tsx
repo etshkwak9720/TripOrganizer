@@ -1,35 +1,35 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BANDS, isMealBand, type Band } from '../db';
-import { compressPhoto } from '../image';
 import { Icon, Screen, TopBar } from '../ui';
-import type { ShareSnapshot, PhotoMeta } from '../share';
+import type { ShareSnapshot } from '../share';
+import GalleryTab from './join/GalleryTab';
 
-function storageKey(shareId: string) {
+export function storageKey(shareId: string) {
   return `share-password:${shareId}`;
 }
 
-// data URL로 읽어 접두사만 떼면, 큰 사진에서도 안전하게 base64를 얻는다.
-// (String.fromCharCode(...bytes)는 인자 수 상한을 넘겨 RangeError가 날 수 있다)
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.slice(result.indexOf(',') + 1));
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
+// 사진 소유자 식별용 기기 토큰(계정 없이 '내 사진'을 구분).
+export function ownerToken(): string {
+  let t = localStorage.getItem('photo-owner');
+  if (!t) { t = crypto.randomUUID(); localStorage.setItem('photo-owner', t); }
+  return t;
 }
+
+const TABS = [
+  { key: 'now', label: '지금', icon: 'near_me' },
+  { key: 'plan', label: '일정', icon: 'event_note' },
+  { key: 'mission', label: '미션', icon: 'flag', gameOnly: true },
+  { key: 'gallery', label: '갤러리', icon: 'photo_library' },
+] as const;
+type TabKey = (typeof TABS)[number]['key'];
 
 export default function Join() {
   const { shareId } = useParams<{ shareId: string }>();
   const [password, setPassword] = useState('');
   const [schedule, setSchedule] = useState<ShareSnapshot | null>(null);
-  const [photos, setPhotos] = useState<PhotoMeta[]>([]);
   const [error, setError] = useState('');
-  const [day, setDay] = useState(0);
+  const [tab, setTab] = useState<TabKey>('plan');
 
   async function verify(pw: string) {
     setError('');
@@ -41,20 +41,18 @@ export default function Join() {
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       setError(body.error ?? '비밀번호가 틀렸습니다');
-      return false;
+      return;
     }
     const body = await res.json();
     setSchedule(body.schedule);
     localStorage.setItem(storageKey(shareId!), pw);
-    await loadPhotos(pw);
-    return true;
   }
 
-  async function loadPhotos(pw: string) {
-    const res = await fetch(`/api/share/${shareId}/photos`, {
-      headers: { 'x-trip-password': pw },
-    });
-    if (res.ok) setPhotos((await res.json()).photos);
+  async function refresh() {
+    const pw = localStorage.getItem(storageKey(shareId!));
+    if (!pw) return;
+    const res = await fetch(`/api/share/${shareId}`, { headers: { 'x-trip-password': pw } });
+    if (res.ok) setSchedule((await res.json()).schedule);
   }
 
   useEffect(() => {
@@ -63,19 +61,15 @@ export default function Join() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareId]);
 
-  async function uploadPhoto(file: File) {
-    const pw = localStorage.getItem(storageKey(shareId!));
-    if (!pw) return;
-    const compressed = await compressPhoto(file);
-    const fileBase64 = await blobToBase64(compressed);
-    const res = await fetch(`/api/share/${shareId}/photos`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ password: pw, placeId: null, caption: '', fileBase64, contentType: compressed.type }),
-    });
-    if (res.ok) await loadPhotos(pw);
-    else alert((await res.json().catch(() => ({}))).error ?? '업로드 실패');
-  }
+  // 거의 실시간: 20초마다 + 창 포커스 시 최신 스냅샷 재조회.
+  useEffect(() => {
+    if (!schedule) return;
+    const iv = setInterval(refresh, 20000);
+    const onVis = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule === null, shareId]);
 
   if (!schedule) {
     return (
@@ -89,29 +83,50 @@ export default function Join() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <button className="btn-primary w-full" onClick={() => verify(password)}>
-            입장
-          </button>
+          <button className="btn-primary w-full" onClick={() => verify(password)}>입장</button>
           {error && <p className="text-[13px] text-red-600">{error}</p>}
         </div>
       </Screen>
     );
   }
 
-  const daySlots = schedule.slots.filter((s) => s.dayIndex === day);
+  const tabs = TABS.filter((t) => !('gameOnly' in t && t.gameOnly) || schedule.trip.mode === 'game');
 
   return (
     <>
       <TopBar title={schedule.trip.title} />
+      <main className="pb-20">
+        {tab === 'plan' && <PlanTab schedule={schedule} />}
+        {tab === 'gallery' && <GalleryTab shareId={shareId!} places={schedule.places} />}
+        {tab === 'mission' && <ComingSoon label="미션·랭킹은 곧 제공됩니다" icon="flag" />}
+        {tab === 'now' && <ComingSoon label="지금(위치·도착시간)은 곧 제공됩니다" icon="near_me" />}
+      </main>
+
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[520px] bg-surface border-t border-outline-variant/30 z-40"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="flex justify-around items-center h-16">
+          {tabs.map((t) => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex flex-col items-center justify-center gap-0.5 w-full h-full ${tab === t.key ? 'text-primary-container' : 'text-tertiary'}`}>
+              <Icon name={t.icon} fill={tab === t.key} />
+              <span className="text-[11px] font-medium">{t.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+    </>
+  );
+}
+
+function PlanTab({ schedule }: { schedule: ShareSnapshot }) {
+  const [day, setDay] = useState(0);
+  const daySlots = schedule.slots.filter((s) => s.dayIndex === day);
+  return (
+    <>
       <div className="flex gap-2 px-4 pt-3 overflow-x-auto no-scrollbar">
         {Array.from({ length: schedule.trip.dayCount }).map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setDay(i)}
-            className={`shrink-0 px-4 py-2 rounded-full text-[14px] font-semibold ${
-              day === i ? 'bg-primary-container text-on-primary-container' : 'bg-surface-variant text-on-surface-variant'
-            }`}
-          >
+          <button key={i} onClick={() => setDay(i)}
+            className={`shrink-0 px-4 py-2 rounded-full text-[14px] font-semibold ${day === i ? 'bg-primary-container text-on-primary-container' : 'bg-surface-variant text-on-surface-variant'}`}>
             {i + 1}일차
           </button>
         ))}
@@ -123,9 +138,7 @@ export default function Join() {
             if (entries.length === 0) return null;
             return (
               <div key={band} className="card p-3">
-                <span className={`chip ${isMealBand(band) ? 'bg-emerald/10 text-emerald' : 'bg-primary-container/15 text-primary-container'}`}>
-                  {band}
-                </span>
+                <span className={`chip ${isMealBand(band) ? 'bg-emerald/10 text-emerald' : 'bg-primary-container/15 text-primary-container'}`}>{band}</span>
                 {entries.map((s, i) => {
                   const place = s.placeId != null ? schedule.places.find((p) => p.id === s.placeId) : undefined;
                   return (
@@ -138,29 +151,18 @@ export default function Join() {
             );
           })}
         </div>
-
-        <div className="mt-6 pt-4 border-t border-outline-variant/30">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">사진 ({photos.length})</h3>
-            <label className="chip bg-emerald/10 text-emerald cursor-pointer">
-              <Icon name="add_a_photo" className="text-[16px]" /> 올리기
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => e.target.files?.[0] && uploadPhoto(e.target.files[0])}
-              />
-            </label>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {photos.map((p) => (
-              <a key={p.id} href={p.blobUrl} target="_blank" rel="noreferrer" download>
-                <img src={p.blobUrl} alt="" className="w-full aspect-square object-cover rounded-md" />
-              </a>
-            ))}
-          </div>
-        </div>
       </Screen>
     </>
+  );
+}
+
+function ComingSoon({ label, icon }: { label: string; icon: string }) {
+  return (
+    <Screen>
+      <div className="flex flex-col items-center justify-center text-center py-16 text-on-surface-variant">
+        <Icon name={icon} className="text-[44px] text-outline mb-2" />
+        <p className="text-[14px]">{label}</p>
+      </div>
+    </Screen>
   );
 }
