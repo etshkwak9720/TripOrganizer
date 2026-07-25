@@ -32,7 +32,7 @@ check('countPhotosForPlace: placeId 5 → 2개', share.countPhotosForPlace(photo
 check('countPhotosForPlace: placeId 7 → 1개', share.countPhotosForPlace(photos, 7) === 1);
 check('countPhotosForPlace: placeId 999 → 0개', share.countPhotosForPlace(photos, 999) === 0);
 
-// --- checkRateLimit: 가짜 KV로 in-memory 카운터 구현 ---
+// --- isRateLimited/recordFailedAttempt: 가짜 KV로 in-memory 카운터 구현 ---
 class FakeKV {
   store = new Map();
   async get(key) { return this.store.has(key) ? this.store.get(key) : null; }
@@ -46,15 +46,13 @@ class FakeKV {
 }
 
 const kv = new FakeKV();
-for (let i = 0; i < share.MAX_ATTEMPTS; i++) {
-  const ok = await share.checkRateLimit(kv, 'trip1', '1.1.1.1');
-  if (i === 0) check('checkRateLimit: 첫 시도 허용', ok);
-}
-const overLimit = await share.checkRateLimit(kv, 'trip1', '1.1.1.1');
-check('checkRateLimit: 한도 초과 시 거부', overLimit === false);
+check('isRateLimited: 아직 시도 없으면 통과', await share.isRateLimited(kv, 'trip1', '1.1.1.1') === false);
 
-const otherIp = await share.checkRateLimit(kv, 'trip1', '2.2.2.2');
-check('checkRateLimit: 다른 IP는 별도 카운트', otherIp === true);
+for (let i = 0; i < share.MAX_ATTEMPTS; i++) {
+  await share.recordFailedAttempt(kv, 'trip1', '1.1.1.1');
+}
+check('isRateLimited: 실패 MAX_ATTEMPTS번 후 차단', await share.isRateLimited(kv, 'trip1', '1.1.1.1') === true);
+check('isRateLimited: 다른 IP는 별도 카운트', await share.isRateLimited(kv, 'trip1', '2.2.2.2') === false);
 
 // --- hash.ts: bcrypt 라운드트립 ---
 const hashMod = await vite.ssrLoadModule('/api/_lib/hash.ts');

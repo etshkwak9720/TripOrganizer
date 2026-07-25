@@ -1,17 +1,32 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import {
   shareKey, photosKey, countPhotosForPlace, MAX_PHOTOS_PER_PLACE,
+  isRateLimited, recordFailedAttempt,
   type ShareRecord, type PhotoMeta,
 } from '../../../src/share.js';
 import { verifyPassword } from '../../_lib/hash.js';
 import { kvClient } from '../../_lib/kv.js';
 import { putPhoto, delPhoto } from '../../_lib/blob.js';
 
-async function authenticate(shareId: string, password: string | undefined): Promise<ShareRecord | null> {
-  if (!password) return null;
+function clientIp(req: VercelRequest): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  return first?.split(',')[0]?.trim() || 'unknown';
+}
+
+// 비밀번호 검증만 한다 — 실패 시 recordFailedAttempt를 호출하고, 성공 시엔 건드리지 않는다.
+// rate limit 통과 여부(isRateLimited)는 호출부에서 이 함수를 부르기 전에 별도로 확인한다.
+async function authenticate(shareId: string, password: string | undefined, ip: string): Promise<ShareRecord | null> {
+  if (!password) {
+    await recordFailedAttempt(kvClient, shareId, ip);
+    return null;
+  }
   const record = await kvClient.get<ShareRecord>(shareKey(shareId));
-  if (!record) return null;
-  return (await verifyPassword(password, record.passwordHash)) ? record : null;
+  if (!record || !(await verifyPassword(password, record.passwordHash))) {
+    await recordFailedAttempt(kvClient, shareId, ip);
+    return null;
+  }
+  return record;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -20,11 +35,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: 'invalid request' });
     return;
   }
+  const ip = clientIp(req);
 
   if (req.method === 'GET') {
+    if (await isRateLimited(kvClient, shareId, ip)) {
+      res.status(429).json({ error: '잠시 후 다시 시도하세요' });
+      return;
+    }
     const headerPassword = req.headers['x-trip-password'];
     const password = Array.isArray(headerPassword) ? headerPassword[0] : headerPassword;
-    const record = await authenticate(shareId, password);
+    const record = await authenticate(shareId, password, ip);
     if (!record) {
       res.status(401).json({ error: '비밀번호가 틀렸습니다' });
       return;
@@ -35,6 +55,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'POST') {
+    if (await isRateLimited(kvClient, shareId, ip)) {
+      res.status(429).json({ error: '잠시 후 다시 시도하세요' });
+      return;
+    }
     const body = (req.body ?? {}) as {
       password?: string;
       placeId?: number | null;
@@ -44,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       contentType?: string;
       owner?: string;
     };
-    const record = await authenticate(shareId, body.password);
+    const record = await authenticate(shareId, body.password, ip);
     if (!record) {
       res.status(401).json({ error: '비밀번호가 틀렸습니다' });
       return;
@@ -76,8 +100,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'DELETE') {
+    if (await isRateLimited(kvClient, shareId, ip)) {
+      res.status(429).json({ error: '잠시 후 다시 시도하세요' });
+      return;
+    }
     const body = (req.body ?? {}) as { password?: string; id?: string; owner?: string };
-    const record = await authenticate(shareId, body.password);
+    const record = await authenticate(shareId, body.password, ip);
     if (!record) {
       res.status(401).json({ error: '비밀번호가 틀렸습니다' });
       return;
