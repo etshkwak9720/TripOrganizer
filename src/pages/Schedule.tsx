@@ -153,6 +153,7 @@ function Entry({ slot, band, places, index, canDelete }: {
 }) {
   const meal = isMealBand(band);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [editPlaceId, setEditPlaceId] = useState<number | null>(null);
 
   return (
     <div className={index > 0 ? 'pt-3 border-t border-outline-variant/25' : ''}>
@@ -204,14 +205,24 @@ function Entry({ slot, band, places, index, canDelete }: {
         </div>
       ) : (
         <div className="space-y-2">
-          <select
-            className="input text-[14px]"
-            value={slot.placeId ?? ''}
-            onChange={(e) => db.slots.update(slot.id!, { placeId: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">방문 장소 선택…</option>
-            {places.map((p) => <option key={p.id} value={p.id}>{p.name}{p.region ? ` (${p.region})` : ''}</option>)}
-          </select>
+          <div className="flex gap-2">
+            <select
+              className="input text-[14px] flex-1"
+              value={slot.placeId ?? ''}
+              onChange={(e) => db.slots.update(slot.id!, { placeId: e.target.value ? Number(e.target.value) : null })}
+            >
+              <option value="">방문 장소 선택…</option>
+              {places.map((p) => <option key={p.id} value={p.id}>{p.name}{p.region ? ` (${p.region})` : ''}</option>)}
+            </select>
+            {slot.placeId && (
+              <button
+                onClick={() => setEditPlaceId(slot.placeId!)}
+                className="chip bg-primary-container/15 text-primary-container shrink-0 flex items-center gap-1 text-[12px] px-2.5"
+              >
+                <Icon name="edit_location" className="text-[14px]" /> 위치 수정
+              </button>
+            )}
+          </div>
           <input
             className="input text-[14px]"
             placeholder="또는 활동/지역 직접 입력"
@@ -235,6 +246,25 @@ function Entry({ slot, band, places, index, canDelete }: {
             });
             await db.slots.update(slot.id!, { placeId: pid });
             setPickerOpen(false);
+          }}
+        />
+      )}
+
+      {editPlaceId && (
+        <PlacePicker
+          title="위치 수정"
+          initialName={places.find((p) => p.id === editPlaceId)?.name}
+          initialLat={places.find((p) => p.id === editPlaceId)?.lat}
+          initialLng={places.find((p) => p.id === editPlaceId)?.lng}
+          initialAddress={places.find((p) => p.id === editPlaceId)?.address}
+          onClose={() => setEditPlaceId(null)}
+          onSave={async (v) => {
+            await db.places.update(editPlaceId, {
+              name: v.name,
+              address: v.address || undefined,
+              ...(v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : {}),
+            });
+            setEditPlaceId(null);
           }}
         />
       )}
