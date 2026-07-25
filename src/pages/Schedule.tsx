@@ -214,6 +214,12 @@ function Entry({ slot, band, places, index, canDelete }: {
               <option value="">방문 장소 선택…</option>
               {places.map((p) => <option key={p.id} value={p.id}>{p.name}{p.region ? ` (${p.region})` : ''}</option>)}
             </select>
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="chip bg-primary-container/15 text-primary-container shrink-0 flex items-center gap-1 text-[12px] px-2.5"
+            >
+              <Icon name="add_location_alt" className="text-[14px]" /> 지도 추가
+            </button>
             {slot.placeId && (
               <button
                 onClick={() => setEditPlaceId(slot.placeId!)}
@@ -236,11 +242,11 @@ function Entry({ slot, band, places, index, canDelete }: {
 
       {pickerOpen && (
         <PlacePicker
-          title="식당 등록"
+          title={meal ? "식당 등록" : "방문 장소 등록"}
           onClose={() => setPickerOpen(false)}
           onSave={async (v) => {
             const pid = await db.places.add({
-              tripId: slot.tripId, name: v.name, region: '', kind: 'food',
+              tripId: slot.tripId, name: v.name, region: '', kind: meal ? 'food' : 'sight',
               address: v.address || undefined,
               ...(v.lat != null && v.lng != null ? { lat: v.lat, lng: v.lng } : {}),
             });
