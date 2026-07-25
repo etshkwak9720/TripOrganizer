@@ -52,7 +52,7 @@ const BAND_SYNONYMS: Record<Band, string[]> = {
   석식: ['석식', '저녁식사', '저녁', 'dinner', '만찬'],
   오전: ['오전', 'am', 'morning'],
   오후: ['오후', 'pm', 'afternoon'],
-  저녁: ['야간', 'night', 'evening', '나이트'],
+  저녁: ['야간', '야간활동', '숙소', 'night', 'evening', '나이트'],
 };
 
 /** Band from a category/구분 label such as '점심식사' or '오전볼거리'. */
@@ -139,17 +139,9 @@ export function toTime(v: unknown): string | null {
   return null;
 }
 
-/**
- * Parse a schedule workbook. Handles the shapes real files come in:
- * a title row above the header, merged 일자 cells, Korean dates, no 구분
- * column (band inferred from the 일정 label or the clock), and trailing
- * free-text note rows.
- */
-export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResult {
-  const wb = XLSX.read(buf, { cellDates: true });
-  const sheetName = wb.SheetNames[0];
-  const sheet = wb.Sheets[sheetName];
+function parseSheet(sheet: XLSX.WorkSheet, sheetName: string): ParseResult {
   const grid: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, blankrows: false });
+  const isTemplate = /\d+\s*박\s*\d+\s*일/.test(sheetName);
 
   let headerIdx = 0, best = 0, mapping: Record<number, string> = {};
   for (let r = 0; r < Math.min(12, grid.length); r++) {
@@ -191,7 +183,6 @@ export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResul
     });
   }
 
-  // merged day cells: carry the last seen day down; order days by appearance
   const order: string[] = [];
   let last: string | null = null;
   const dayIdx: (number | null)[] = raws.map((r) => {
@@ -205,13 +196,14 @@ export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResul
   raws.forEach((r, i) => {
     const day = dayIdx[i];
     const label = `${r.category} ${r.place} ${r.activity}`.trim();
-    // free-text note rows: no time, no place, just a long sentence
+    // 템플릿 시트: 교사가 장소를 안 채운 골격 행은 무시("입력한 데까지가 여행").
+    if (isTemplate && !r.place) { skipped++; return; }
     if (!r.time && !r.place && (r.category.length > 25 || r.activity.length > 25)) { skipped++; return; }
     if (day == null) { skipped++; return; }
 
     let band = toBand(r.category) ?? toBand(r.activity);
     if (!band && r.time) band = bandFromTime(r.time, isMealish(label));
-    if (!band) band = lastBand;                 // e.g. the 'B.' alternative under a dinner row
+    if (!band) band = lastBand;
     if (!band) { skipped++; return; }
     lastBand = band;
 
@@ -231,20 +223,47 @@ export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResul
   return { rows, headers, skipped, sheetName };
 }
 
-/** Downloadable template that always imports cleanly. */
+/**
+ * Parse a schedule workbook. Reads every sheet and returns the one with the
+ * most valid rows — so a multi-sheet template (1박2일/2박3일/3박4일) imports the
+ * sheet the teacher actually filled, while single-sheet files behave as before.
+ */
+export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResult {
+  const wb = XLSX.read(buf, { cellDates: true });
+  let best: ParseResult | null = null;
+  for (const name of wb.SheetNames) {
+    const res = parseSheet(wb.Sheets[name], name);
+    if (!best || res.rows.length > best.rows.length) best = res;
+  }
+  return best ?? { rows: [], headers: [], skipped: 0, sheetName: wb.SheetNames[0] ?? '' };
+}
+
+// 여행 길이별 3시트 골격 양식. 교사는 '세부'(장소) 칸만 채우면 된다.
+// 하루 골격: 오전활동2 / 점심 / 오후활동2 / 저녁식사 / 숙소. 빈 장소 행은 가져오기 때 무시된다.
+const TEMPLATE_SKELETON: [string, string][] = [
+  ['09:00', '오전활동①'], ['11:00', '오전활동②'], ['13:00', '점심'],
+  ['14:00', '오후활동①'], ['16:00', '오후활동②'], ['19:00', '저녁식사'], ['20:30', '숙소'],
+];
+const TEMPLATE_SHEETS: { name: string; days: number }[] = [
+  { name: '1박2일', days: 2 }, { name: '2박3일', days: 3 }, { name: '3박4일', days: 4 },
+];
+
+export function buildTemplateSheet(days: number): unknown[][] {
+  const aoa: unknown[][] = [['일자', '시간', '일정', '세부', '주소', '비고']];
+  for (let d = 0; d < days; d++) {
+    TEMPLATE_SKELETON.forEach(([time, label], i) => {
+      aoa.push([i === 0 ? `${d + 1}일차` : '', time, label, '', '', '']);
+    });
+  }
+  return aoa;
+}
+
 export function downloadTemplate() {
-  const data = [
-    ['일자', '시간', '일정', '세부', '주소', '비고'],
-    ['7월18일(토)', '9:00', '오전볼거리', '보성 녹차밭', '전남 보성군 보성읍 녹차로 763-43', '입장료 3,000원'],
-    ['', '12:30', '점심식사', '정가네원조꼬막회관', '전남 보성군 벌교읍 조정래길 55', '추천-꼬막비빔밥'],
-    ['', '16:00', '산책', '오동도', '전남 여수시 수정동 산1-11', '1시간30분 소요'],
-    ['', '18:00', '저녁', '미로횟집', '전남 여수시 시청서3길 18', '택시 20분'],
-    ['7월19일(일)', '8:30', '아침식사', '광장국밥', '전남 여수시 통제영5길 3', '바지락돼지국밥'],
-    ['', '10:30', '볼거리', '돌산공원', '전남 여수시 돌산읍 우두리 산355-1', ''],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{ wch: 12 }, { wch: 7 }, { wch: 11 }, { wch: 20 }, { wch: 34 }, { wch: 20 }];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '일정');
+  for (const { name, days } of TEMPLATE_SHEETS) {
+    const ws = XLSX.utils.aoa_to_sheet(buildTemplateSheet(days));
+    ws['!cols'] = [{ wch: 8 }, { wch: 7 }, { wch: 11 }, { wch: 20 }, { wch: 30 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
   XLSX.writeFile(wb, '여정_일정_템플릿.xlsx');
 }
