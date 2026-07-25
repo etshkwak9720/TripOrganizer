@@ -52,7 +52,7 @@ const BAND_SYNONYMS: Record<Band, string[]> = {
   석식: ['석식', '저녁식사', '저녁', 'dinner', '만찬'],
   오전: ['오전', 'am', 'morning'],
   오후: ['오후', 'pm', 'afternoon'],
-  저녁: ['야간', 'night', 'evening', '나이트'],
+  저녁: ['야간', '야간활동', '숙소', 'night', 'evening', '나이트'],
 };
 
 /** Band from a category/구분 label such as '점심식사' or '오전볼거리'. */
@@ -139,17 +139,9 @@ export function toTime(v: unknown): string | null {
   return null;
 }
 
-/**
- * Parse a schedule workbook. Handles the shapes real files come in:
- * a title row above the header, merged 일자 cells, Korean dates, no 구분
- * column (band inferred from the 일정 label or the clock), and trailing
- * free-text note rows.
- */
-export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResult {
-  const wb = XLSX.read(buf, { cellDates: true });
-  const sheetName = wb.SheetNames[0];
-  const sheet = wb.Sheets[sheetName];
+function parseSheet(sheet: XLSX.WorkSheet, sheetName: string): ParseResult {
   const grid: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, blankrows: false });
+  const isTemplate = /\d+\s*박\s*\d+\s*일/.test(sheetName);
 
   let headerIdx = 0, best = 0, mapping: Record<number, string> = {};
   for (let r = 0; r < Math.min(12, grid.length); r++) {
@@ -191,7 +183,6 @@ export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResul
     });
   }
 
-  // merged day cells: carry the last seen day down; order days by appearance
   const order: string[] = [];
   let last: string | null = null;
   const dayIdx: (number | null)[] = raws.map((r) => {
@@ -205,13 +196,14 @@ export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResul
   raws.forEach((r, i) => {
     const day = dayIdx[i];
     const label = `${r.category} ${r.place} ${r.activity}`.trim();
-    // free-text note rows: no time, no place, just a long sentence
+    // 템플릿 시트: 교사가 장소를 안 채운 골격 행은 무시("입력한 데까지가 여행").
+    if (isTemplate && !r.place) { skipped++; return; }
     if (!r.time && !r.place && (r.category.length > 25 || r.activity.length > 25)) { skipped++; return; }
     if (day == null) { skipped++; return; }
 
     let band = toBand(r.category) ?? toBand(r.activity);
     if (!band && r.time) band = bandFromTime(r.time, isMealish(label));
-    if (!band) band = lastBand;                 // e.g. the 'B.' alternative under a dinner row
+    if (!band) band = lastBand;
     if (!band) { skipped++; return; }
     lastBand = band;
 
@@ -229,6 +221,21 @@ export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResul
   });
 
   return { rows, headers, skipped, sheetName };
+}
+
+/**
+ * Parse a schedule workbook. Reads every sheet and returns the one with the
+ * most valid rows — so a multi-sheet template (1박2일/2박3일/3박4일) imports the
+ * sheet the teacher actually filled, while single-sheet files behave as before.
+ */
+export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResult {
+  const wb = XLSX.read(buf, { cellDates: true });
+  let best: ParseResult | null = null;
+  for (const name of wb.SheetNames) {
+    const res = parseSheet(wb.Sheets[name], name);
+    if (!best || res.rows.length > best.rows.length) best = res;
+  }
+  return best ?? { rows: [], headers: [], skipped: 0, sheetName: wb.SheetNames[0] ?? '' };
 }
 
 /** Downloadable template that always imports cleanly. */
