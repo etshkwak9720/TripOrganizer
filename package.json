@@ -15,6 +15,7 @@
     "test:place": "node scripts/smoke-placepicker.mjs",
     "test:geo": "node scripts/test-geo.mjs",
     "test:image": "node scripts/smoke-image.mjs",
+    "test:template": "node scripts/e2e-template.mjs",
     "test:share": "node scripts/test-share.mjs",
     "test:share:e2e": "node scripts/smoke-share.mjs",
     "test:share:ui": "node scripts/smoke-share-ui.mjs",
