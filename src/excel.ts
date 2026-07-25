@@ -238,20 +238,32 @@ export function parseWorkbook(buf: ArrayBuffer, _startDate?: string): ParseResul
   return best ?? { rows: [], headers: [], skipped: 0, sheetName: wb.SheetNames[0] ?? '' };
 }
 
-/** Downloadable template that always imports cleanly. */
+// 여행 길이별 3시트 골격 양식. 교사는 '세부'(장소) 칸만 채우면 된다.
+// 하루 골격: 오전활동2 / 점심 / 오후활동2 / 저녁식사 / 숙소. 빈 장소 행은 가져오기 때 무시된다.
+const TEMPLATE_SKELETON: [string, string][] = [
+  ['09:00', '오전활동①'], ['11:00', '오전활동②'], ['13:00', '점심'],
+  ['14:00', '오후활동①'], ['16:00', '오후활동②'], ['19:00', '저녁식사'], ['20:30', '숙소'],
+];
+const TEMPLATE_SHEETS: { name: string; days: number }[] = [
+  { name: '1박2일', days: 2 }, { name: '2박3일', days: 3 }, { name: '3박4일', days: 4 },
+];
+
+export function buildTemplateSheet(days: number): unknown[][] {
+  const aoa: unknown[][] = [['일자', '시간', '일정', '세부', '주소', '비고']];
+  for (let d = 0; d < days; d++) {
+    TEMPLATE_SKELETON.forEach(([time, label], i) => {
+      aoa.push([i === 0 ? `${d + 1}일차` : '', time, label, '', '', '']);
+    });
+  }
+  return aoa;
+}
+
 export function downloadTemplate() {
-  const data = [
-    ['일자', '시간', '일정', '세부', '주소', '비고'],
-    ['7월18일(토)', '9:00', '오전볼거리', '보성 녹차밭', '전남 보성군 보성읍 녹차로 763-43', '입장료 3,000원'],
-    ['', '12:30', '점심식사', '정가네원조꼬막회관', '전남 보성군 벌교읍 조정래길 55', '추천-꼬막비빔밥'],
-    ['', '16:00', '산책', '오동도', '전남 여수시 수정동 산1-11', '1시간30분 소요'],
-    ['', '18:00', '저녁', '미로횟집', '전남 여수시 시청서3길 18', '택시 20분'],
-    ['7월19일(일)', '8:30', '아침식사', '광장국밥', '전남 여수시 통제영5길 3', '바지락돼지국밥'],
-    ['', '10:30', '볼거리', '돌산공원', '전남 여수시 돌산읍 우두리 산355-1', ''],
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{ wch: 12 }, { wch: 7 }, { wch: 11 }, { wch: 20 }, { wch: 34 }, { wch: 20 }];
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '일정');
+  for (const { name, days } of TEMPLATE_SHEETS) {
+    const ws = XLSX.utils.aoa_to_sheet(buildTemplateSheet(days));
+    ws['!cols'] = [{ wch: 8 }, { wch: 7 }, { wch: 11 }, { wch: 20 }, { wch: 30 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  }
   XLSX.writeFile(wb, '여정_일정_템플릿.xlsx');
 }
