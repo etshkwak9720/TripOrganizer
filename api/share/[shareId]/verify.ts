@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { shareKey, checkRateLimit, type ShareRecord } from '../../../src/share.js';
+import { shareKey, isRateLimited, recordFailedAttempt, type ShareRecord } from '../../../src/share.js';
 import { verifyPassword } from '../../_lib/hash.js';
 import { kvClient } from '../../_lib/kv.js';
 
@@ -21,14 +21,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const withinLimit = await checkRateLimit(kvClient, shareId, clientIp(req));
-  if (!withinLimit) {
+  const ip = clientIp(req);
+  if (await isRateLimited(kvClient, shareId, ip)) {
     res.status(429).json({ error: '잠시 후 다시 시도하세요' });
     return;
   }
 
   const record = await kvClient.get<ShareRecord>(shareKey(shareId));
   if (!record || !(await verifyPassword(password, record.passwordHash))) {
+    await recordFailedAttempt(kvClient, shareId, ip);
     res.status(401).json({ error: '비밀번호가 틀렸습니다' });
     return;
   }

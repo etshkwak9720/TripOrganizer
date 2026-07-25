@@ -64,10 +64,18 @@ export interface PhotoMeta {
   owner?: string; // 업로더 기기 토큰 — 본인 사진만 삭제 가능
 }
 
-export async function checkRateLimit(kv: KVClient, shareId: string, ip: string): Promise<boolean> {
-  const count = await kv.incr(attemptsKey(shareId, ip));
-  if (count === 1) await kv.expire(attemptsKey(shareId, ip), ATTEMPT_WINDOW_SECONDS);
-  return count <= MAX_ATTEMPTS;
+// 실패한 시도만 카운트한다 — 성공한 검증(자동 재접속 포함)까지 세면 같은 IP를 공유하는
+// 참가자 전원이 정상 사용만으로 잠길 수 있다. isRateLimited는 읽기 전용 peek이고,
+// recordFailedAttempt는 비밀번호가 틀렸을 때만 호출해야 한다.
+export async function isRateLimited(kv: KVClient, shareId: string, ip: string): Promise<boolean> {
+  const count = (await kv.get<number>(attemptsKey(shareId, ip))) ?? 0;
+  return count >= MAX_ATTEMPTS;
+}
+
+export async function recordFailedAttempt(kv: KVClient, shareId: string, ip: string): Promise<void> {
+  const key = attemptsKey(shareId, ip);
+  const count = await kv.incr(key);
+  if (count === 1) await kv.expire(key, ATTEMPT_WINDOW_SECONDS);
 }
 
 export function countPhotosForPlace(photos: PhotoMeta[], placeId: number | null): number {
