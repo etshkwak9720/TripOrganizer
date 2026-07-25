@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, BANDS, BAND_DEFAULT_TIME, isMealBand, type Band } from '../db';
 import { parseWorkbook, downloadTemplate, type ParsedRow } from '../excel';
 import { imageToRows } from '../ocr';
+import { geocodeSearch } from '../geo';
 import { Icon } from '../ui';
 
 type Source = 'excel' | 'image' | null;
@@ -89,7 +90,15 @@ export default function ScheduleImport({ tripId, onClose }: { tripId: number; on
           }
           continue;
         }
-        byName.set(name, await db.places.add({ tripId, name, region: r.region, kind: isMealBand(r.band) ? 'food' : 'sight', learn: r.learn || undefined }));
+        let lat: number | undefined, lng: number | undefined;
+        try {
+          const query = r.region || name;
+          const cands = await geocodeSearch(query);
+          if (cands.length > 0) { lat = cands[0].lat; lng = cands[0].lng; }
+        } catch {
+          // geocoding failed; place saved without coordinates (user can add via PlacePicker later)
+        }
+        byName.set(name, await db.places.add({ tripId, name, region: r.region, kind: isMealBand(r.band) ? 'food' : 'sight', learn: r.learn || undefined, lat, lng }));
       }
 
       const counter = new Map<string, number>();
