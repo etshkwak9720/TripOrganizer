@@ -32,7 +32,13 @@
 - **1단계(데이터 계층)**: `ShareSnapshot` 확장(missions/groups(id)/missionResults/adjustments/awards/places.learn), 순수 `computeRanking`(`src/share.ts`), 인솔자 자동 재발행 훅 `useAutoRepublish`(`src/shareClient.ts`, `App.tsx`의 `TripLayout`에서 마운트, 데이터 변경 시 3초 디바운스 후 스냅샷 재전송), `GET /api/share/:id` 스냅샷 조회.
 - **2단계(탭 셸 + 일정 + 갤러리)**: `src/pages/Join.tsx`를 하단 4탭 셸로 재작성. `PlanTab`(일정, 읽기전용). `src/pages/join/GalleryTab.tsx`(서버 사진 보기·올리기·장소필터·**내 사진만 삭제/교체**). 참가자 자동 새로고침(20초/포커스). 사진 소유권: 기기 토큰(`localStorage` `photo-owner`), `PhotoMeta.owner`, `DELETE /api/share/:id/photos`(owner 일치 검증).
 - **3단계(미션 탭)**: `src/pages/join/MissionTab.tsx` — 실시간 랭킹(`computeRanking`) + 1등상/꼴찌벌 + 장소별 미션(어느 모둠 완료). 읽기 전용.
-- **4단계(지금 탭)**: `src/pages/join/NowTab.tsx` — 지도(`LiveMap`) + 오늘의 동선 + "다음 목적지까지 약 N분"(**학생 본인 GPS** 기준). `Live.tsx`는 건드리지 않고 독립 유틸(`LiveMap`/`geo.fetchRoute`/`mock.estimateTravelMinutes`) 재사용.
+- **4단계(지금 탭)**: `src/pages/join/NowTab.tsx` — 지도(`LiveMap`) + 오늘의 동선 + "다음 목적지까지 약 N분". **위치 기준은 인솔자(버스) 실시간 위치 우선, 없으면 학생 본인 GPS로 폴백**(아래 후속 커밋으로 진화). `Live.tsx`는 처음엔 건드리지 않았으나, 인솔자 위치 송출을 위해 이후 수정됨(독립 유틸 `LiveMap`/`geo.fetchRoute`/`mock.estimateTravelMinutes`는 계속 재사용).
+
+### D. 인솔자 실시간 위치 → 학생 '지금' 탭 (후속 커밋 `sync admin location and ETA to student mode`)
+- `Trip`에 `adminLat/adminLng/adminTargetIdx/adminDayIndex` 필드 추가(`src/db.ts`). `Live.tsx`(인솔자)가 자기 GPS·현재 목적지·일차를 이 필드에 기록.
+- `ShareSnapshot.trip`에 admin 필드 포함(`src/share.ts`), `buildShareSnapshot`이 채우고, `useAutoRepublish` 신호에도 포함(위치 변하면 재발행).
+- `NowTab`이 `schedule.trip.adminLat/adminLng`를 우선 사용(`adminPos`), 없으면 학생 GPS 폴백. `adminTargetIdx/adminDayIndex`로 목적지·일차 동기화 + 도착 배너.
+- **주의**: 실기기 GPS로 인솔자↔학생 실시간 반영은 아직 현장 검증 안 됨(스모크는 모의 위치).
 
 ### "거의 실시간" 동작 방식
 인솔자 앱이 공유된 여행을 연 상태에서 데이터(일정/미션/점수/상벌점)를 바꾸면 → `useAutoRepublish`가 3초 뒤 스냅샷을 서버에 재전송 → 참가자 앱이 20초마다/포커스 시 `GET`으로 최신 스냅샷을 받아 반영.
@@ -101,7 +107,7 @@ npx vercel alias set "$LATEST" triporganizer-app.vercel.app
 - **PR #2 머지**: 프로덕션이 feature 브랜치를 직접 배포 중이라 main이 뒤처져 있음. 정리하려면 PR 머지.
 - **도메인 영구 정리**: yeojeong-app.vercel.app 제거 + triporganizer-app을 Production Domain으로(대시보드).
 - 후속 스펙(기존 문서에 명시): 사진 원본 자동 삭제/수명(Vercel Cron), 갤러리 슬라이드쇼 영상, 로컬 `exportTrip/importTrip`(로드맵 1번), 참가자별 개인 계정.
-- **미검증**: 4단계 "지금" 탭의 실기기 GPS 동작은 스모크(모의 위치)로만 확인됨 — 실제 폰 GPS로 도착시간이 맞는지 현장 확인 권장.
+- **미검증**: "지금" 탭 실기기 검증 — 인솔자 폰이 위치를 송출하고(Live 탭), 학생 폰이 인솔자 위치·도착시간을 실시간으로 받아 보는 흐름을 실제 두 기기로 현장 확인 필요(현재는 모의 위치 스모크만).
 - 참가자 갤러리 사진에 감상평(caption) 입력 UI는 없음(보기만) — 필요시 추가.
 
 ## 9. 작업 방식(이 저장소 관례)
