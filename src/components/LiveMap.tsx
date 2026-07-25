@@ -63,14 +63,26 @@ function RecenterControl({ pos, target }: { pos: MapPos | null; target: MapStop 
   );
 }
 
-export default function LiveMap({ stops, route, leg, pos, targetIdx }: {
+function adminIcon() {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:#ff3b30;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">🚌</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+export default function LiveMap({ stops, route, leg, pos, targetIdx, adminPos }: {
   stops: MapStop[];
   route: [number, number][] | null; // full-day road route (dashed)
   leg: [number, number][] | null;   // my position -> next stop (solid)
   pos: MapPos | null;
   targetIdx: number;
+  adminPos?: MapPos | null;
 }) {
   const target = stops[targetIdx];
+  const primaryPos = adminPos || pos; // 초점 맞추기용 주 위치 (관리자 우선)
+  
   return (
     <MapContainer center={[36.5, 127.8]} zoom={7} className="w-full h-full">
       <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
@@ -87,9 +99,12 @@ export default function LiveMap({ stops, route, leg, pos, targetIdx }: {
           <CircleMarker center={[pos.lat, pos.lng]} radius={8} pathOptions={{ color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 1 }} />
         </>
       )}
+      {adminPos && (
+        <Marker position={[adminPos.lat, adminPos.lng]} icon={adminIcon()} />
+      )}
       <FitBounds stops={stops} />
-      <FitLeg pos={pos} target={target} targetIdx={targetIdx} />
-      <RecenterControl pos={pos} target={target} />
+      <FitLeg pos={primaryPos} target={target} targetIdx={targetIdx} />
+      <RecenterControl pos={primaryPos} target={target} />
     </MapContainer>
   );
 }

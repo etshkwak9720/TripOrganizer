@@ -6,6 +6,7 @@ import {
   type Group, type Mission, type MissionResult, type Adjustment,
 } from '../db';
 import { recommendMissions, commonMissions, type MissionTemplate } from '../missions';
+import { computeRanking } from '../share';
 import { Icon, TopBar, Screen, EmptyState } from '../ui';
 
 const MEDAL = ['🥇', '🥈', '🥉'];
@@ -25,19 +26,13 @@ export default function Missions() {
 
   if (!trip) return null;
 
-  // --- live score computation ---
-  const missionById = new Map((missions ?? []).map((m) => [m.id!, m]));
-  const scoreOf = (groupId: number) => {
-    let s = 0;
-    for (const r of results ?? []) {
-      if (r.groupId === groupId && r.done) s += missionById.get(r.missionId)?.points ?? 0;
-    }
-    for (const a of adjustments ?? []) if (a.groupId === groupId) s += a.delta;
-    return s;
-  };
-  const ranked = [...(groups ?? [])]
-    .map((g) => ({ group: g, score: scoreOf(g.id!) }))
-    .sort((a, b) => b.score - a.score);
+  // --- live score computation (shared with participant view) ---
+  const ranked = computeRanking(
+    (groups ?? []).map((g) => ({ id: g.id!, name: g.name })),
+    (missions ?? []).map((m) => ({ id: m.id!, points: m.points })),
+    (results ?? []).map((r) => ({ missionId: r.missionId, groupId: r.groupId, done: r.done })),
+    (adjustments ?? []).map((a) => ({ groupId: a.groupId, delta: a.delta })),
+  );
   const firstId = ranked[0]?.group.id;
   const lastId = ranked.length > 1 ? ranked[ranked.length - 1].group.id : undefined;
 

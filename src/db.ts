@@ -20,6 +20,13 @@ export interface Trip {
   dayCount: number;
   mode: TripMode;
   createdAt: number;
+  shareId?: string;      // 참가자 링크용 공개 식별자. 첫 공유 시 발급, 숫자 PK와 별개(추측 방지)
+  sharePassword?: string; // 인솔자 기기에만 저장되는 평문. 재공유 시 재입력 없이 서버로 전송하기 위함.
+                          // 서버(KV)에는 이 값의 bcrypt 해시만 저장된다
+  adminLat?: number;
+  adminLng?: number;
+  adminTargetIdx?: number;
+  adminDayIndex?: number;
 }
 
 export interface Member {

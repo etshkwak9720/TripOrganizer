@@ -10,6 +10,8 @@ import Itinerary from './pages/Itinerary';
 import Missions from './pages/Missions';
 import Live from './pages/Live';
 import Gallery from './pages/Gallery';
+import Join from './pages/Join';
+import { useAutoRepublish } from './shareClient';
 
 const TABS = [
   { key: 'live', label: '지금', icon: 'near_me', path: (id: string) => `/trip/${id}/live` },
@@ -57,9 +59,16 @@ function BottomTabs() {
   );
 }
 
+function AutoRepublish() {
+  const { id } = useParams();
+  useAutoRepublish(id ? Number(id) : 0);
+  return null;
+}
+
 function TripLayout({ children }: { children: ReactNode }) {
   return (
     <>
+      <AutoRepublish />
       {children}
       <BottomTabs />
     </>
@@ -71,6 +80,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Trips />} />
+        <Route path="/join/:shareId" element={<Join />} />
         <Route path="/trip/:id" element={<TripLayout><Itinerary /></TripLayout>} />
         <Route path="/trip/:id/setup" element={<TripLayout><Setup /></TripLayout>} />
         <Route path="/trip/:id/schedule" element={<TripLayout><Schedule /></TripLayout>} />

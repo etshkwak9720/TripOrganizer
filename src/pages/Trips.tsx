@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type TripMode, type Trip, deleteTrip } from '../db';
+import { publishShare } from '../shareClient';
 import { Icon, Screen, EmptyState } from '../ui';
+import { QRCodeSVG } from 'qrcode.react';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -121,10 +123,12 @@ function TripCover({ blob, title }: { blob: Blob | null; title: string }) {
 function TripCard({
   trip,
   isFinished,
+  onShare,
   onDelete,
 }: {
   trip: TripWithStats;
   isFinished: boolean;
+  onShare: (tripId: number) => void;
   onDelete: (id: number, title: string) => void;
 }) {
   return (
@@ -148,6 +152,17 @@ function TripCard({
             </p>
           </div>
         </Link>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onShare(trip.id!);
+          }}
+          className="w-8 h-8 rounded-full grid place-items-center text-outline hover:text-primary-container hover:bg-primary-container/10 active:scale-95 transition shrink-0"
+          aria-label="여행 공유"
+        >
+          <Icon name="ios_share" className="text-[18px]" />
+        </button>
 
         <button
           onClick={(e) => {
@@ -227,12 +242,8 @@ export default function Trips() {
   }, []);
 
   const [creating, setCreating] = useState(false);
-
-  async function handleDelete(tripId: number, title: string) {
-    if (window.confirm(`'${title}' 여행에 대한 모든 데이터(사진, 일정, 미션 등)가 완전히 삭제되며 복구할 수 없습니다. 정말 삭제하시겠습니까?`)) {
-      await deleteTrip(tripId);
-    }
-  }
+  const [shareTripId, setShareTripId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
 
   if (trips === undefined) return null;
 
@@ -263,7 +274,13 @@ export default function Trips() {
                 </h2>
                 <ul className="space-y-3">
                   {activeTrips.map((t) => (
-                    <TripCard key={t.id} trip={t} isFinished={false} onDelete={handleDelete} />
+                    <TripCard
+                      key={t.id}
+                      trip={t}
+                      isFinished={false}
+                      onShare={(id) => setShareTripId(id)}
+                      onDelete={(id, title) => setDeleteTarget({ id, title })}
+                    />
                   ))}
                 </ul>
               </div>
@@ -276,7 +293,13 @@ export default function Trips() {
                 </h2>
                 <ul className="space-y-3">
                   {finishedTrips.map((t) => (
-                    <TripCard key={t.id} trip={t} isFinished={true} onDelete={handleDelete} />
+                    <TripCard
+                      key={t.id}
+                      trip={t}
+                      isFinished={true}
+                      onShare={(id) => setShareTripId(id)}
+                      onDelete={(id, title) => setDeleteTarget({ id, title })}
+                    />
                   ))}
                 </ul>
               </div>
@@ -285,6 +308,20 @@ export default function Trips() {
         )}
 
         {creating && <CreateForm onClose={() => setCreating(false)} />}
+
+        {shareTripId != null && (
+          <ShareDialog tripId={shareTripId} onClose={() => setShareTripId(null)} />
+        )}
+
+        {deleteTarget && (
+          <ConfirmDialog
+            title="여행 삭제"
+            message={`'${deleteTarget.title}' 여행의 모든 데이터(사진·일정·미션 등)가 삭제되며 되돌릴 수 없습니다.`}
+            confirmLabel="삭제"
+            onConfirm={() => deleteTrip(deleteTarget.id)}
+            onClose={() => setDeleteTarget(null)}
+          />
+        )}
       </Screen>
 
       {!creating && (
@@ -372,6 +409,164 @@ function CreateForm({ onClose }: { onClose: () => void }) {
         </div>
 
         <button className="btn-primary w-full" onClick={create}>여행 만들고 구성 시작</button>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-[520px] bg-surface rounded-t-2xl p-5 pb-8 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="font-head font-bold text-[20px]">{title}</h2>
+        <p className="text-[14px] text-on-surface-variant whitespace-pre-line">{message}</p>
+        <div className="flex gap-3">
+          <button
+            className="flex-1 py-3 rounded-md bg-surface-variant text-on-surface-variant font-semibold active:scale-95 transition"
+            onClick={onClose}
+          >
+            취소
+          </button>
+          <button
+            className="flex-1 py-3 rounded-md bg-error text-on-error font-semibold active:scale-95 transition"
+            onClick={() => { onConfirm(); onClose(); }}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ShareDialog({ tripId, onClose }: { tripId: number; onClose: () => void }) {
+  const [password, setPassword] = useState('');
+  const [phase, setPhase] = useState<'input' | 'result'>('input');
+  const [result, setResult] = useState<{ url: string; password: string } | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const canNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+
+  async function doPublish(pw: string) {
+    setError('');
+    setBusy(true);
+    try {
+      const r = await publishShare(tripId, pw);
+      setResult(r);
+      setPhase('result');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '공유에 실패했습니다');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // 이미 공유된 여행이면 저장된 비번으로 바로 결과 화면(재입력 없이 최신 일정으로 갱신).
+  useEffect(() => {
+    let alive = true;
+    db.trips.get(tripId).then((t) => {
+      if (alive && t?.sharePassword) doPublish(t.sharePassword);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId]);
+
+  function copy() {
+    if (!result) return;
+    navigator.clipboard?.writeText(`${result.url}\n비밀번호: ${result.password}`).catch(() => {});
+  }
+
+  function share() {
+    if (!result) return;
+    navigator.share?.({ title: '여행 공유', text: `${result.url}\n비밀번호: ${result.password}` }).catch(() => {});
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
+      <div
+        className="w-full max-w-[520px] bg-surface rounded-t-2xl p-5 pb-8 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="font-head font-bold text-[20px]">여행 공유</h2>
+          <button onClick={onClose} className="text-outline"><Icon name="close" /></button>
+        </div>
+
+        {phase === 'input' && (
+          <>
+            <div>
+              <label className="field-label">공유 비밀번호</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="참가자에게 알려줄 비밀번호"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoFocus
+              />
+              <p className="text-[12px] text-on-surface-variant mt-1">
+                이 비밀번호를 아는 사람만 일정을 보고 사진을 올릴 수 있어요.
+              </p>
+            </div>
+            {error && <p className="text-[13px] text-red-600">{error}</p>}
+            <button
+              className="btn-primary w-full"
+              disabled={busy || !password.trim()}
+              onClick={() => doPublish(password.trim())}
+            >
+              {busy ? '공유 중…' : '공유하기'}
+            </button>
+          </>
+        )}
+
+        {phase === 'result' && result && (
+          <div className="space-y-3">
+            <div className="rounded-md bg-surface-variant/40 p-3 space-y-1 break-all">
+              <p className="text-[12px] text-on-surface-variant">참여 링크</p>
+              <p className="text-[14px] font-medium">{result.url}</p>
+              <p className="text-[12px] text-on-surface-variant mt-2">비밀번호</p>
+              <p className="text-[16px] font-bold tracking-wide">{result.password}</p>
+            </div>
+
+            <div className="grid place-items-center py-2">
+              <QRCodeSVG value={result.url} size={168} />
+              <p className="text-[12px] text-on-surface-variant mt-2">QR을 스캔하면 참여 페이지가 열려요</p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                className="flex-1 py-3 rounded-md bg-surface-variant text-on-surface-variant font-semibold flex items-center justify-center gap-1 active:scale-95 transition"
+                onClick={copy}
+              >
+                <Icon name="content_copy" className="text-[16px]" /> 복사
+              </button>
+              {canNativeShare && (
+                <button className="btn-primary flex-1 flex items-center justify-center gap-1" onClick={share}>
+                  <Icon name="ios_share" className="text-[16px]" /> 공유하기
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {phase === 'result' && !result && busy && (
+          <p className="text-[14px] text-on-surface-variant py-4 text-center">공유 준비 중…</p>
+        )}
       </div>
     </div>
   );
