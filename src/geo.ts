@@ -16,17 +16,32 @@ export interface RouteResult {
 
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
-// Name/address -> up to 5 candidates (via Kakao Local Search API via Vercel API proxy)
+// Name/address -> up to 5 candidates (using Kakao Maps Places service)
 export async function geocodeSearch(query: string): Promise<GeoCandidate[]> {
-  try {
-    const url = `/api/geocode?query=${encodeURIComponent(query)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`geocode failed: ${res.status}`);
-    return (await res.json()) as GeoCandidate[];
-  } catch (e) {
-    console.error('Geocode error:', e);
-    throw e;
-  }
+  return new Promise((resolve, reject) => {
+    if (!window.kakao?.maps?.services?.Places) {
+      reject(new Error('Kakao Maps not loaded'));
+      return;
+    }
+
+    const places = new window.kakao.maps.services.Places();
+    places.keywordSearch(
+      query,
+      (data: any[], status: any) => {
+        if (status === window.kakao.maps.services.Status.OK) {
+          const candidates: GeoCandidate[] = data.slice(0, 5).map((place: any) => ({
+            name: place.place_name,
+            address: place.road_address_name || place.address_name,
+            lat: Number(place.y),
+            lng: Number(place.x),
+          }));
+          resolve(candidates);
+        } else {
+          reject(new Error(`Kakao Places search failed: ${status}`));
+        }
+      },
+    );
+  });
 }
 
 // Road route through the given waypoints (fallback to OSRM; null = caller should fall back)
