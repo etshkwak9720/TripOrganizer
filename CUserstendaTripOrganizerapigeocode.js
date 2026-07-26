@@ -1,31 +1,7 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 const KAKAO_API_KEY = '7a8c981b5d45696b57977aa91e0f7087';
 const KAKAO_LOCAL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
 
-interface KakaoDocument {
-  place_name: string;
-  address_name: string;
-  road_address_name?: string;
-  x: string;
-  y: string;
-}
-
-interface KakaoResponse {
-  documents: KakaoDocument[];
-}
-
-export interface GeoCandidate {
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-}
-
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
+export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -49,9 +25,9 @@ export default async function handler(
       return res.status(response.status).json({ error: `Kakao API error: ${response.status}` });
     }
 
-    const data = (await response.json()) as KakaoResponse;
+    const data = await response.json();
 
-    const candidates: GeoCandidate[] = data.documents.slice(0, 5).map((d) => ({
+    const candidates = data.documents.slice(0, 5).map((d) => ({
       name: d.place_name,
       address: d.road_address_name || d.address_name,
       lat: Number(d.y),
