@@ -17,12 +17,12 @@ await page.route('**tile.openstreetmap.org/**', (r) => r.fulfill({ status: 200, 
 await page.route('**router.project-osrm.org/**', (r) => r.fulfill({ json: { routes: [{ geometry: { coordinates: [[126.49, 33.51], [126.94, 33.46]] }, duration: 3600, distance: 60000 }] } }));
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
-await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('triporganizer'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
 
 await page.evaluate(() => new Promise((resolve, reject) => {
-  const rq = indexedDB.open('yeojeong');
+  const rq = indexedDB.open('triporganizer');
   rq.onerror = () => reject(rq.error);
   rq.onsuccess = () => {
     const names = ['trips', 'places', 'slots', 'groups', 'members', 'missions'];

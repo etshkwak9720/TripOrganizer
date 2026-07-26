@@ -28,8 +28,8 @@ export default defineConfig({
       },
       includeAssets: ['assets/fonts/*.woff2', 'assets/css/fonts.css', 'icons/*.png'],
       manifest: {
-        name: '여정 — 여행 플래너',
-        short_name: '여정',
+        name: 'TripOrganizer — 여행 플래너',
+        short_name: 'TripOrganizer',
         description: '구성원·일정·미션까지 함께하는 여행 플래너',
         lang: 'ko',
         start_url: '/',

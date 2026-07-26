@@ -40,12 +40,12 @@ const XLSX_PATH = join(TMP, 'template-filled.xlsx');
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const readDB = (store) => page.evaluate((s) => new Promise((r) => {
-  const q = indexedDB.open('yeojeong');
+  const q = indexedDB.open('triporganizer');
   q.onsuccess = () => { q.result.transaction(s).objectStore(s).getAll().onsuccess = (e) => r(e.target.result); };
 }), store);
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
-await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('triporganizer'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForTimeout(400);
 await page.getByRole('button', { name: /새 여행 만들기/ }).click();

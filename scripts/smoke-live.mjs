@@ -43,13 +43,13 @@ await page.route('**nominatim**', (route) => route.abort());
 
 // ---------- clean slate ----------
 await page.goto(BASE, { waitUntil: 'networkidle' });
-await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('triporganizer'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
 
 // ---------- seed trip + places + slots straight into IndexedDB ----------
 await page.evaluate(() => new Promise((resolve, reject) => {
-  const rq = indexedDB.open('yeojeong');
+  const rq = indexedDB.open('triporganizer');
   rq.onerror = () => reject(rq.error);
   rq.onsuccess = () => {
     const db = rq.result;

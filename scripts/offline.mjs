@@ -57,7 +57,7 @@ let err = '';
 await page.reload({ waitUntil: 'domcontentloaded' }).catch((e) => { err = e.message.split('\n')[0]; });
 await page.waitForTimeout(2000);
 const text = await page.locator('body').innerText().catch(() => '');
-log(/여정|여행/.test(text), '오프라인 새로고침 로드', `"${text.replace(/\s+/g, ' ').slice(0, 36)}"${err ? ' | ' + err : ''}`);
+log(/TripOrganizer|여행/.test(text), '오프라인 새로고침 로드', `"${text.replace(/\s+/g, ' ').slice(0, 36)}"${err ? ' | ' + err : ''}`);
 
 const fontOk = await page.evaluate(async () => { try { return (await fetch('/assets/css/fonts.css')).ok; } catch { return false; } });
 log(fontOk, '오프라인 폰트 CSS 캐시 제공');

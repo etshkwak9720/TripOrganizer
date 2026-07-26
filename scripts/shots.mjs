@@ -35,7 +35,7 @@ await page.evaluate(async () => {
   ];
 
   await new Promise((res) => {
-    const rq = indexedDB.open('yeojeong');
+    const rq = indexedDB.open('triporganizer');
     rq.onsuccess = () => {
       const db = rq.result;
       const names = ['trips', 'members', 'groups', 'places', 'slots', 'missions', 'missionResults', 'adjustments', 'awards', 'photos'];

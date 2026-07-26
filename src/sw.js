@@ -11,7 +11,7 @@ const ASSETS = [...new Set(MANIFEST.map((e) => (typeof e === 'string' ? e : e.ur
 // Cache name must change whenever the build does, otherwise `activate` keeps
 // the previous cache and stale hashed assets are served forever.
 const BUILD_ID = ASSETS.join('|').split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
-const CACHE = `yeojeong-precache-${BUILD_ID}`;
+const CACHE = `triporganizer-precache-${BUILD_ID}`;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

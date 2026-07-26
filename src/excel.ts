@@ -265,5 +265,5 @@ export function downloadTemplate() {
     ws['!cols'] = [{ wch: 8 }, { wch: 7 }, { wch: 11 }, { wch: 20 }, { wch: 30 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, ws, name);
   }
-  XLSX.writeFile(wb, '여정_일정_템플릿.xlsx');
+  XLSX.writeFile(wb, 'TripOrganizer_일정_템플릿.xlsx');
 }

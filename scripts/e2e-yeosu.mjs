@@ -39,13 +39,13 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 page.on('pageerror', (e) => console.log('  [pageerror]', e.message.slice(0, 140)));
 const readDB = (s) => page.evaluate((st) => new Promise((r) => {
-  const q = indexedDB.open('yeojeong');
+  const q = indexedDB.open('triporganizer');
   q.onsuccess = () => { q.result.transaction(st).objectStore(st).getAll().onsuccess = (e) => r(e.target.result); };
 }), s);
 
 const newTrip = async (title) => {
   await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+  await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('triporganizer'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
   await page.goto(BASE, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
   await page.getByRole('button', { name: /새 여행 만들기/ }).click();

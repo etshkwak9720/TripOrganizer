@@ -7,7 +7,9 @@ import { dirname, join } from 'path';
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
 mkdirSync(OUT, { recursive: true });
 
-// tangerine rounded tile with a compass/route glyph + "여정"
+// tangerine rounded tile with a compass/route glyph + "TRIP"
+// ("TripOrganizer" in full is unreadable at 192px, so the wordmark is clipped
+// to a monogram; the compass carries the rest of the identity.)
 const svg = (size, maskable) => {
   const pad = maskable ? size * 0.12 : 0;
   const r = maskable ? size * 0.5 : size * 0.22;
@@ -17,7 +19,7 @@ const svg = (size, maskable) => {
   <g transform="translate(${pad},${pad})">
     <circle cx="${inner / 2}" cy="${inner * 0.42}" r="${inner * 0.22}" fill="none" stroke="#ffffff" stroke-width="${inner * 0.045}"/>
     <path d="M ${inner / 2} ${inner * 0.30} L ${inner * 0.58} ${inner * 0.46} L ${inner / 2} ${inner * 0.42} L ${inner * 0.42} ${inner * 0.46} Z" fill="#ffffff"/>
-    <text x="${inner / 2}" y="${inner * 0.80}" font-family="sans-serif" font-size="${inner * 0.22}" font-weight="800" fill="#ffffff" text-anchor="middle">여정</text>
+    <text x="${inner / 2}" y="${inner * 0.80}" font-family="sans-serif" font-size="${inner * 0.19}" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="${inner * 0.01}">TRIP</text>
   </g>
 </svg>`;
 };

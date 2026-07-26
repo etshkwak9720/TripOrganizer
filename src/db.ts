@@ -136,7 +136,7 @@ export interface Photo {
   ts: number;
 }
 
-class YeojeongDB extends Dexie {
+class TripOrganizerDB extends Dexie {
   trips!: Table<Trip, number>;
   members!: Table<Member, number>;
   groups!: Table<Group, number>;
@@ -149,7 +149,7 @@ class YeojeongDB extends Dexie {
   photos!: Table<Photo, number>;
 
   constructor() {
-    super('yeojeong');
+    super('triporganizer');
     this.version(1).stores({
       trips: '++id, createdAt',
       members: '++id, tripId, groupId',
@@ -180,7 +180,16 @@ class YeojeongDB extends Dexie {
   }
 }
 
-export const db = new YeojeongDB();
+export const db = new TripOrganizerDB();
+
+// The store was called 'yeojeong' before the TripOrganizer rename. Renaming the
+// database starts a fresh empty one rather than migrating, so the old store is
+// left orphaned — invisible to the app but still holding its storage quota
+// (photos make that non-trivial). Reclaim it once, fire-and-forget: a failure
+// here must never keep the app from starting.
+if (typeof indexedDB !== 'undefined') {
+  try { indexedDB.deleteDatabase('yeojeong'); } catch { /* nothing to reclaim */ }
+}
 
 export async function deleteTrip(tripId: number) {
   await db.transaction('rw', [

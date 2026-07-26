@@ -1,4 +1,4 @@
-# 여정 (Yeojeong) — 여행 플래너 + 미션 게임 PWA
+# TripOrganizer — 여행 플래너 + 미션 게임 PWA
 
 구성원·장소·일정을 직접 입력해 쓰는 범용 여행 앱. 서버 없이 기기 안(IndexedDB)에서 동작하는
 설치형 PWA입니다. React + Vite + TypeScript + Tailwind + Dexie.

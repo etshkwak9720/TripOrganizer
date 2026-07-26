@@ -21,7 +21,7 @@ XLSX.writeFile((() => { const wb = XLSX.utils.book_new(); XLSX.utils.book_append
 const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 await p.goto('http://localhost:5173', { waitUntil: 'networkidle' });
-await p.evaluate(() => new Promise(r => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+await p.evaluate(() => new Promise(r => { const d = indexedDB.deleteDatabase('triporganizer'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
 await p.goto('http://localhost:5173', { waitUntil: 'networkidle' });
 await p.waitForTimeout(500);
 await p.getByRole('button', { name: /새 여행 만들기/ }).click();

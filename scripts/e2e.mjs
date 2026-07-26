@@ -55,7 +55,7 @@ await page.route('**tile.openstreetmap.org/**', (route) =>
 
 // ---------- clean slate ----------
 await page.goto(BASE, { waitUntil: 'networkidle' });
-await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('yeojeong'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
+await page.evaluate(() => new Promise((r) => { const d = indexedDB.deleteDatabase('triporganizer'); d.onsuccess = d.onerror = d.onblocked = () => r(); }));
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForTimeout(600);
 
@@ -73,7 +73,7 @@ for (const n of ['김민준', '이서연', '박지호']) {
   await page.getByPlaceholder('구성원 이름 입력 후 Enter').press('Enter');
   await page.waitForTimeout(150);
 }
-const memberCount = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('members').objectStore('members').count().onsuccess = (e) => r(e.target.result); }; }));
+const memberCount = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('members').objectStore('members').count().onsuccess = (e) => r(e.target.result); }; }));
 check('구성원 추가 (Enter)', memberCount === 3, `${memberCount}명`);
 
 // ---------- 3. groups ----------
@@ -85,7 +85,7 @@ for (const g of ['1모둠', '2모둠', '3모둠']) {
   await page.getByPlaceholder('모둠 이름 (예: 1모둠)').press('Enter');
   await page.waitForTimeout(150);
 }
-const groupCount = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('groups').objectStore('groups').count().onsuccess = (e) => r(e.target.result); }; }));
+const groupCount = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('groups').objectStore('groups').count().onsuccess = (e) => r(e.target.result); }; }));
 check('모둠 추가', groupCount === 3, `${groupCount}개`);
 
 // ---------- 4. assign member to group ----------
@@ -94,7 +94,7 @@ await page.waitForTimeout(250);
 const sel = page.locator('select').first();
 await sel.selectOption({ label: '1모둠' });
 await page.waitForTimeout(300);
-const assigned = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('members').objectStore('members').getAll().onsuccess = (e) => r(e.target.result.filter((m) => m.groupId).length); }; }));
+const assigned = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('members').objectStore('members').getAll().onsuccess = (e) => r(e.target.result.filter((m) => m.groupId).length); }; }));
 check('구성원 → 모둠 배정', assigned >= 1, `${assigned}명 배정됨`);
 
 // ---------- 5. places (+ learn content saves on change) ----------
@@ -121,7 +121,7 @@ await page.locator('li', { hasText: '만장굴' }).getByText('expand_more').clic
 await page.waitForTimeout(200);
 await page.getByPlaceholder(/장소 안내/).fill('세계자연유산 용암동굴.');
 await page.waitForTimeout(400);
-const placeData = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('places').objectStore('places').getAll().onsuccess = (e) => r(e.target.result.map((p) => ({ n: p.name, rg: p.region, lr: (p.learn || '').slice(0, 8) }))); }; }));
+const placeData = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('places').objectStore('places').getAll().onsuccess = (e) => r(e.target.result.map((p) => ({ n: p.name, rg: p.region, lr: (p.learn || '').slice(0, 8) }))); }; }));
 check('장소 추가', placeData.length === 2, placeData.map((p) => p.n).join(', '));
 check('장소 지역/학습콘텐츠 저장', !!placeData[0].rg && !!placeData[0].lr, `${placeData[0].rg} / "${placeData[0].lr}…"`);
 
@@ -155,10 +155,10 @@ await page.waitForTimeout(200);
 await page.getByRole('button', { name: /^저장$/ }).click();
 await page.waitForTimeout(400);
 
-const slotData = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('slots').objectStore('slots').getAll().onsuccess = (e) => r(e.target.result.map((s) => ({ b: s.band, p: s.placeId }))); }; }));
+const slotData = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('slots').objectStore('slots').getAll().onsuccess = (e) => r(e.target.result.map((s) => ({ b: s.band, p: s.placeId }))); }; }));
 check('일정: 장소 배정', slotData.some((s) => s.b === '오전' && s.p) && slotData.some((s) => s.b === '오후' && s.p));
 check('일정: 식당 장소 연결 저장', slotData.some((s) => s.b === '조식' && s.p));
-const foodPlace = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('places').objectStore('places').getAll().onsuccess = (e) => r(e.target.result.find((p) => p.kind === 'food')); }; }));
+const foodPlace = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('places').objectStore('places').getAll().onsuccess = (e) => r(e.target.result.find((p) => p.kind === 'food')); }; }));
 check('식당 장소 kind=food + 좌표', !!foodPlace && foodPlace.lat != null, foodPlace ? `${foodPlace.name} @ ${foodPlace.lat},${foodPlace.lng}` : '');
 
 // ---------- 7. itinerary: timeline + travel time ----------
@@ -185,7 +185,7 @@ await page.waitForTimeout(300);
 await page.locator('.fixed').getByText('close').click();
 await page.waitForTimeout(400);
 
-const missionCount = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('missions').objectStore('missions').count().onsuccess = (e) => r(e.target.result); }; }));
+const missionCount = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('missions').objectStore('missions').count().onsuccess = (e) => r(e.target.result); }; }));
 check('추천 미션 추가', missionCount >= 1, `${missionCount}개 · "${recoTitle}"`);
 
 // complete for 1모둠
@@ -251,7 +251,7 @@ await page.locator('main .grid button').first().click();
 await page.waitForTimeout(400);
 await page.getByPlaceholder('이 순간을 한 줄로 남겨보세요').fill('첫 사진 감상평');
 await page.waitForTimeout(500);
-const capSaved = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('yeojeong'); q.onsuccess = () => { q.result.transaction('photos').objectStore('photos').getAll().onsuccess = (e) => r(e.target.result.map((p) => p.caption)); }; }));
+const capSaved = await page.evaluate(() => new Promise((r) => { const q = indexedDB.open('triporganizer'); q.onsuccess = () => { q.result.transaction('photos').objectStore('photos').getAll().onsuccess = (e) => r(e.target.result.map((p) => p.caption)); }; }));
 check('한줄 감상평 즉시 저장', capSaved.includes('첫 사진 감상평'), JSON.stringify(capSaved));
 
 // ---------- 13. mode toggle hides missions tab ----------
