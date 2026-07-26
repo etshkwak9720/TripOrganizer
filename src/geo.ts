@@ -28,7 +28,7 @@ export async function geocodeSearch(query: string): Promise<GeoCandidate[]> {
     places.keywordSearch(
       query,
       (data: any[], status: any) => {
-        if (status === window.kakao.maps.services.Status.OK) {
+        if (status === (window.kakao.maps.services as any).Status.OK) {
           const candidates: GeoCandidate[] = data.slice(0, 5).map((place: any) => ({
             name: place.place_name,
             address: place.road_address_name || place.address_name,
