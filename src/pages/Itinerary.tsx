@@ -4,12 +4,14 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, isMealBand, orderSlots, hasContent, type Band, type Place, type Photo } from '../db';
 import { estimateTravelMinutes } from '../mock';
 import { Icon, TopBar, Screen, EmptyState } from '../ui';
+import RenameTripDialog from '../components/RenameTripDialog';
 
 export default function Itinerary() {
   const { id } = useParams();
   const tripId = Number(id);
   const trip = useLiveQuery(() => db.trips.get(tripId), [tripId]);
   const [day, setDay] = useState(0);
+  const [renaming, setRenaming] = useState(false);
 
   const slots = useLiveQuery(
     () => db.slots.where('[tripId+dayIndex]').equals([tripId, day]).toArray(),
@@ -33,12 +35,17 @@ export default function Itinerary() {
       <TopBar
         title={trip.title}
         backTo="/"
+        onEditTitle={() => setRenaming(true)}
         right={
           <button onClick={toggleMode} className="chip bg-surface-variant text-on-surface-variant">
             {trip.mode === 'game' ? '🎮 게임' : '🌿 휴식'}
           </button>
         }
       />
+
+      {renaming && (
+        <RenameTripDialog tripId={tripId} current={trip.title} onClose={() => setRenaming(false)} />
+      )}
 
       <div className="flex gap-2 px-4 pt-3 overflow-x-auto no-scrollbar">
         {Array.from({ length: trip.dayCount }).map((_, i) => (

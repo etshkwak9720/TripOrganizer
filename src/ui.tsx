@@ -12,7 +12,13 @@ export function Icon({ name, className = '', fill }: { name: string; className?:
   );
 }
 
-export function TopBar({ title, back, backTo, right }: { title: string; back?: boolean; backTo?: string; right?: ReactNode }) {
+export function TopBar({ title, back, backTo, right, onEditTitle }: {
+  title: string;
+  back?: boolean;
+  backTo?: string;
+  right?: ReactNode;
+  onEditTitle?: () => void; // shows a pencil beside the title when provided
+}) {
   const nav = useNavigate();
   return (
     <header className="sticky top-0 z-40 flex items-center gap-2 h-14 px-3 bg-surface/90 backdrop-blur border-b border-outline-variant/30">
@@ -27,6 +33,11 @@ export function TopBar({ title, back, backTo, right }: { title: string; back?: b
         </button>
       )}
       <h1 className="font-head font-bold text-[18px] text-on-surface truncate flex-1">{title}</h1>
+      {onEditTitle && (
+        <button aria-label="여행 이름 수정" onClick={onEditTitle} className="p-1 text-outline hover:text-primary-container hover:bg-primary-container/10 rounded-full w-8 h-8 grid place-items-center active:scale-95 transition shrink-0">
+          <Icon name="edit" className="text-[18px]" />
+        </button>
+      )}
       {right}
     </header>
   );

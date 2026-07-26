@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { Icon, TopBar, Screen, EmptyState } from '../ui';
 import PlacePicker from '../components/PlacePicker';
+import RenameTripDialog from '../components/RenameTripDialog';
 
 type Tab = 'members' | 'groups' | 'places';
 
@@ -12,6 +13,7 @@ export default function Setup() {
   const tripId = Number(id);
   const trip = useLiveQuery(() => db.trips.get(tripId), [tripId]);
   const [tab, setTab] = useState<Tab>('members');
+  const [renaming, setRenaming] = useState(false);
 
   if (!trip) return <Screen><EmptyState icon="error" title="여행을 찾을 수 없어요" /></Screen>;
 
@@ -20,6 +22,7 @@ export default function Setup() {
       <TopBar
         title={trip.title}
         backTo="/"
+        onEditTitle={() => setRenaming(true)}
         right={
           <Link to={`/trip/${tripId}/schedule`} className="text-primary-container font-semibold text-[14px] flex items-center gap-0.5">
             일정짜기 <Icon name="chevron_right" className="text-[18px]" />
@@ -47,6 +50,10 @@ export default function Setup() {
         {tab === 'groups' && <Groups tripId={tripId} />}
         {tab === 'places' && <Places tripId={tripId} />}
       </Screen>
+
+      {renaming && (
+        <RenameTripDialog tripId={tripId} current={trip.title} onClose={() => setRenaming(false)} />
+      )}
     </>
   );
 }
