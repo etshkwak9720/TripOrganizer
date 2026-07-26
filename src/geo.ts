@@ -20,7 +20,10 @@ const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 export async function geocodeSearch(query: string): Promise<GeoCandidate[]> {
   return new Promise((resolve, reject) => {
     if (!window.kakao?.maps?.services?.Places) {
-      reject(new Error('Kakao Maps not loaded'));
+      // Almost always a console misconfiguration rather than a transient fault:
+      // wrong app key type, unregistered site domain, or the 카카오맵 service
+      // left disabled on the app. Say so instead of suggesting a retry.
+      reject(new Error('카카오맵 SDK를 불러오지 못했습니다. 앱 키·도메인 설정을 확인해 주세요.'));
       return;
     }
 

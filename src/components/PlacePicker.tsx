@@ -37,7 +37,7 @@ export default function PlacePicker({ title, initialName, initialLat, initialLng
   const [q, setQ] = useState(initialName ?? '');
   const [cands, setCands] = useState<GeoCandidate[]>([]);
   const [searching, setSearching] = useState(false);
-  const [err, setErr] = useState(false);
+  const [err, setErr] = useState('');
   const [sel, setSel] = useState<{ lat: number; lng: number; address: string } | null>(
     initialLat != null && initialLng != null ? { lat: initialLat, lng: initialLng, address: initialAddress ?? '' } : null,
   );
@@ -111,15 +111,15 @@ export default function PlacePicker({ title, initialName, initialLat, initialLng
       return;
     }
     setSearching(true);
-    setErr(false);
+    setErr('');
     let stale = false;
     const t = window.setTimeout(async () => {
       try {
         const r = await geocodeSearch(q.trim());
         if (!stale) setCands(r);
-      } catch {
+      } catch (e) {
         if (!stale) {
-          setErr(true);
+          setErr(e instanceof Error ? e.message : '검색에 실패했어요.');
           setCands([]);
         }
       } finally {
@@ -158,7 +158,7 @@ export default function PlacePicker({ title, initialName, initialLat, initialLng
         <label className="text-[11px] font-bold text-on-surface-variant">카카오맵 검색</label>
         <input className="input" placeholder="이름/주소로 검색 (예: 성산일출봉)" value={q} onChange={(e) => setQ(e.target.value)} />
         {searching && <p className="text-[12px] text-on-surface-variant mt-1">검색 중…</p>}
-        {err && <p className="text-[12px] text-error mt-1">검색에 실패했어요. 잠시 후 다시 시도해 주세요.</p>}
+        {err && <p className="text-[12px] text-error mt-1">{err}</p>}
         {cands.length > 0 && (
           <ul className="mt-1 divide-y divide-outline-variant/20 border border-outline-variant/30 rounded-md overflow-hidden">
             {cands.map((c, i) => (
