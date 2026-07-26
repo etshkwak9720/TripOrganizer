@@ -73,13 +73,18 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
   const leftTargetRef = useRef(false);
 
   // 관리자 일차 & 목적지 동기화
+  // 관리자가 일차를 옮기면 따라간다. `day`를 의존성에 넣으면 참가자가 다른 날을
+  // 눌러도 효과가 곧바로 다시 돌며 되돌려버려 일차 선택 자체가 막힌다.
+  const adminDay = schedule.trip.adminDayIndex;
   useEffect(() => {
-    if (schedule.trip.adminDayIndex != null && schedule.trip.adminDayIndex !== day) {
-      setDay(schedule.trip.adminDayIndex);
-    }
-  }, [schedule.trip.adminDayIndex, day]);
+    if (adminDay != null) setDay(adminDay);
+  }, [adminDay]);
 
+  // 관리자의 진행 상황은 참가자가 관리자와 같은 일차를 볼 때만 의미가 있다.
+  // 다른 날을 둘러보는 동안에는 남의 날 인덱스를 덮어쓰지도, 도착 배너를 띄우지도 않는다.
+  const followingAdmin = adminDay == null || adminDay === day;
   useEffect(() => {
+    if (!followingAdmin) return;
     if (schedule.trip.adminTargetIdx != null && schedule.trip.adminTargetIdx !== targetIdx) {
       const prevTarget = coordStops[targetIdx];
       if (prevTarget && schedule.trip.adminTargetIdx > targetIdx) {
@@ -89,17 +94,13 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
       }
       setTargetIdx(schedule.trip.adminTargetIdx);
     }
-  }, [schedule.trip.adminTargetIdx, targetIdx, coordStops]);
+  }, [schedule.trip.adminTargetIdx, targetIdx, coordStops, followingAdmin]);
 
   useEffect(() => {
     setLeg(null); lastArriveRef.current = null; leftTargetRef.current = false;
     legFetchRef.current = { t: 0, lat: 0, lng: 0, idx: -1 };
-    if (schedule.trip.adminTargetIdx != null) {
-      setTargetIdx(schedule.trip.adminTargetIdx);
-    } else {
-      setTargetIdx(0);
-    }
-  }, [day, coordsKey, schedule.trip.adminTargetIdx]);
+    setTargetIdx(followingAdmin && schedule.trip.adminTargetIdx != null ? schedule.trip.adminTargetIdx : 0);
+  }, [day, coordsKey, schedule.trip.adminTargetIdx, followingAdmin]);
 
   const target = coordStops[targetIdx];
 
