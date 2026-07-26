@@ -69,7 +69,7 @@ await candidate.click();
 await page.waitForTimeout(400);
 
 // ---------- map + pin ----------
-const mapVisible = await page.locator('.leaflet-container').first().isVisible().catch(() => false);
+const mapVisible = await page.locator('[data-kakao-map]').first().isVisible().catch(() => false);
 check('지도(핀) 표시', mapVisible);
 
 // ---------- save ----------
@@ -91,7 +91,7 @@ check('재편집(edit_location_alt) 버튼 노출', await editBtn.isVisible().ca
 await editBtn.click();
 await page.waitForTimeout(400);
 
-const reopenMapVisible = await page.locator('.leaflet-container').first().isVisible().catch(() => false);
+const reopenMapVisible = await page.locator('[data-kakao-map]').first().isVisible().catch(() => false);
 check('재편집 시 지도+핀 즉시 표시 (기존 좌표로 시딩)', reopenMapVisible);
 
 const reopenSaveBtn = page.locator('.fixed.inset-0 button.btn-primary').last();

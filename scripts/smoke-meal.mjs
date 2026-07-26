@@ -109,7 +109,7 @@ await candidate.click();
 await page.waitForTimeout(400);
 
 // ---------- verify map displayed ----------
-const mapVisible = await page.locator('.leaflet-container').first().isVisible().catch(() => false);
+const mapVisible = await page.locator('[data-kakao-map]').first().isVisible().catch(() => false);
 check('지도(핀) 표시', mapVisible);
 
 // ---------- save ----------

@@ -77,10 +77,10 @@ await page.waitForTimeout(800);
 check('지금 페이지 이동', page.url().includes('/live'));
 
 // ---------- map + markers ----------
-const mapVisible = await page.locator('.leaflet-container').first().isVisible().catch(() => false);
+const mapVisible = await page.locator('[data-kakao-map]').first().isVisible().catch(() => false);
 check('지도 표시', mapVisible);
 
-const markerCount = await page.locator('.leaflet-marker-icon').count().catch(() => 0);
+const markerCount = await page.locator('[data-map-pin="stop"]').count().catch(() => 0);
 check('번호 마커 3개 표시', markerCount === 3, `count=${markerCount}`);
 
 // ---------- switch to simulation mode ----------
@@ -102,7 +102,7 @@ const etaMatch = bodyText.match(/약\s*\d+분/)?.[0] || 'not found';
 check('ETA 텍스트(약 N분) 표시', /약\s*\d+분/.test(bodyText), etaMatch);
 
 // ---------- leg polyline ----------
-const pathCount = await page.locator('.leaflet-overlay-pane path').count().catch(() => 0);
+const pathCount = await page.locator('[data-kakao-map] svg path').count().catch(() => 0);
 check('경로 폴리라인 표시', pathCount > 0, `path count=${pathCount}`);
 
 // ---------- 12x speed + start ----------

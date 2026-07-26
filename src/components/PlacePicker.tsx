@@ -159,7 +159,7 @@ export default function PlacePicker({ title, initialName, initialLat, initialLng
         {sel && (
           <div className="mt-3">
             <div className="h-52 rounded-md overflow-hidden border border-outline-variant/30">
-              <div ref={mapRef} className="w-full h-full" />
+              <div ref={mapRef} data-kakao-map className="w-full h-full" />
             </div>
             <p className="text-[11px] text-on-surface-variant mt-1">
               <Icon name="pan_tool_alt" className="text-[13px] align-middle" /> 핀을 끌거나 지도를 탭해 위치를 조정하세요 · {sel.lat.toFixed(5)}, {sel.lng.toFixed(5)}

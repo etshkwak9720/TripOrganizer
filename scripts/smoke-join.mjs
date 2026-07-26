@@ -67,7 +67,7 @@ await page.getByRole('button', { name: '지금' }).click();
 await page.waitForTimeout(1500);
 const nowText = await page.locator('body').innerText();
 check('지금 탭: 오늘의 동선 표시', nowText.includes('오늘의 동선') && nowText.includes('성산일출봉'));
-check('지금 탭: 지도 렌더', (await page.locator('.leaflet-container').count()) > 0);
+check('지금 탭: 지도 렌더', (await page.locator('[data-kakao-map]').count()) > 0);
 
 await browser.close();
 const pass = results.filter((r) => r.ok).length;

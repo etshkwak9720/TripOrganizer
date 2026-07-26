@@ -6,7 +6,7 @@
 ## 1. 프로젝트 개요
 
 - **무엇**: 학교 수학여행/단체여행용 모바일 웹앱(PWA). 한국어 UI. 인솔자(교사)가 여행·일정·모둠·미션을 구성하고, 학생(참가자)이 링크+비밀번호로 접속해 일정·미션·사진·현재위치를 본다.
-- **스택**: Vite 8 + React 19 + TypeScript(~6.0) + Dexie(IndexedDB, 로컬 저장) + react-router-dom 7 + Tailwind. 지도는 Leaflet/react-leaflet. 서버는 Vercel Functions(Node) + Vercel KV(Upstash Redis, `ioredis`) + Vercel Blob(사진).
+- **스택**: Vite 8 + React 19 + TypeScript(~6.0) + Dexie(IndexedDB, 로컬 저장) + react-router-dom 7 + Tailwind. 지도는 카카오맵 JS SDK(`index.html`에서 로드, `window.kakao`). 서버는 Vercel Functions(Node) + Vercel KV(Upstash Redis, `ioredis`) + Vercel Blob(사진).
 - **로컬 데이터**: 인솔자 앱의 모든 데이터는 브라우저 IndexedDB(Dexie, `src/db.ts`)에 있다. 서버는 "공유된 스냅샷"만 저장한다.
 
 ## 2. 현재 배포/저장소 상태
