@@ -14,38 +14,17 @@ export interface RouteResult {
   estimated?: boolean;        // true = straight-line fallback, not road data
 }
 
-const KAKAO_API_KEY = '7a8c981b5d45696b57977aa91e0f7087';
-const KAKAO_LOCAL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
-// Name/address -> up to 5 candidates (Kakao Local Search API - Korea-optimized)
+// Name/address -> up to 5 candidates (via Kakao Local Search API via Vercel API proxy)
 export async function geocodeSearch(query: string): Promise<GeoCandidate[]> {
-  const url = `${KAKAO_LOCAL}?query=${encodeURIComponent(query)}&size=5`;
   try {
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': `KakaoAK ${KAKAO_API_KEY}`,
-        'Accept': 'application/json',
-      },
-    });
+    const url = `/api/geocode?query=${encodeURIComponent(query)}`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`geocode failed: ${res.status}`);
-    const json = (await res.json()) as {
-      documents: Array<{
-        place_name: string;
-        address_name: string;
-        road_address_name?: string;
-        x: string;
-        y: string;
-      }>;
-    };
-    return json.documents.slice(0, 5).map((d) => ({
-      name: d.place_name,
-      address: d.road_address_name || d.address_name,
-      lat: Number(d.y),
-      lng: Number(d.x),
-    }));
+    return (await res.json()) as GeoCandidate[];
   } catch (e) {
-    console.error('Kakao geocode error:', e);
+    console.error('Geocode error:', e);
     throw e;
   }
 }
