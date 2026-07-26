@@ -177,7 +177,9 @@ const readDB = (store) =>
 
 try {
   const places = await readDB('places');
-  const olePlace = places.find((p) => p.kind === 'food' && p.name === '올레국수');
+  // PlacePicker fills the name from the search hit, so the saved name is the
+  // provider's ("당케올레국수" on Kakao), not the typed query. Match loosely.
+  const olePlace = places.find((p) => p.kind === 'food' && p.name.includes('올레국수'));
   const hasValidPlace = olePlace && typeof olePlace.lat === 'number' && typeof olePlace.lng === 'number';
   check('DB: 식당 장소 생성 (kind=food, name, lat/lng)', hasValidPlace, hasValidPlace ? `place id=${olePlace.id}, lat=${olePlace.lat}, lng=${olePlace.lng}` : 'place not found or invalid');
 

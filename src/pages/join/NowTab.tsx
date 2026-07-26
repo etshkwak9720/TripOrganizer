@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BANDS, type Band } from '../../db';
 import { estimateTravelMinutes } from '../../mock';
 import { fetchRoute, type RouteResult } from '../../geo';
 import LiveMap, { type MapPos } from '../../components/LiveMap';
 import { Icon, Screen, EmptyState } from '../../ui';
 import type { ShareSnapshot } from '../../share';
+import { buildDayStops, type DayStop } from '../../dayStops';
 
 type SnapPlace = ShareSnapshot['places'][number];
-interface Stop { place: SnapPlace; time: string; band: Band }
+type Stop = DayStop<SnapPlace>;
 
 const ARRIVE_KM = 0.08;
 const LEG_REFRESH_MS = 30_000;
@@ -26,13 +26,11 @@ function clockPlus(min: number) {
 export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
   const [day, setDay] = useState(0);
 
-  const stops: Stop[] = useMemo(() => {
-    const byId = new Map(schedule.places.map((p) => [p.id, p]));
-    return schedule.slots
-      .filter((s) => s.dayIndex === day && s.placeId != null && byId.has(s.placeId))
-      .sort((a, b) => BANDS.indexOf(a.band) - BANDS.indexOf(b.band) || (a.order ?? 0) - (b.order ?? 0))
-      .map((s) => ({ place: byId.get(s.placeId!)!, time: s.plannedTime, band: s.band }));
-  }, [schedule, day]);
+  // Day 2 onward opens at the previous night's lodging — see buildDayStops.
+  const stops: Stop[] = useMemo(
+    () => buildDayStops(schedule.slots, new Map(schedule.places.map((p) => [p.id, p])), day),
+    [schedule, day],
+  );
 
   const coordStops = useMemo(() => stops.filter((s) => s.place.lat != null && s.place.lng != null), [stops]);
   const noCoordStops = useMemo(() => stops.filter((s) => s.place.lat == null || s.place.lng == null), [stops]);
@@ -223,8 +221,11 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
                 <li key={i} className="relative mb-3">
                   <div className={`absolute -left-5 top-1.5 w-4 h-4 rounded-full ring-4 ring-surface ${i < targetIdx || done ? 'bg-primary-container' : i === targetIdx ? 'bg-emerald' : 'bg-surface-variant'}`} />
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold text-on-surface-variant w-12">{s.time}</span>
-                    <span className={`font-medium ${i === targetIdx ? 'text-primary-container' : ''}`}>{s.place.kind === 'food' ? '🍜 ' : ''}{s.place.name}</span>
+                    <span className="text-[13px] font-semibold text-on-surface-variant w-12">{s.fromPrevDay ? '출발' : s.time}</span>
+                    <span className={`font-medium ${i === targetIdx ? 'text-primary-container' : ''}`}>
+                      {s.fromPrevDay ? '🏨 ' : s.place.kind === 'food' ? '🍜 ' : ''}{s.place.name}
+                      {s.fromPrevDay && <span className="text-[12px] text-on-surface-variant font-normal"> · 어제 숙소</span>}
+                    </span>
                   </div>
                 </li>
               ))}

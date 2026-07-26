@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, orderSlots, type Place } from '../db';
+import { db, type Place } from '../db';
+import { buildDayStops, type DayStop } from '../dayStops';
 import { estimateTravelMinutes } from '../mock';
 import { fetchRoute, type RouteResult } from '../geo';
 import LiveMap, { type MapPos } from '../components/LiveMap';
 import { Icon, TopBar, Screen, EmptyState } from '../ui';
 
-interface Stop { place: Place; time: string; band: string }
+type Stop = DayStop<Place>;
 
 const SIM_MIN_PER_SEC = 12;     // simulated minutes per real second at 1x
 const ARRIVE_KM = 0.08;         // arrival radius ~80m
@@ -19,20 +20,16 @@ export default function Live() {
   const tripId = Number(id);
   const trip = useLiveQuery(() => db.trips.get(tripId), [tripId]);
   const [day, setDay] = useState(0);
-  const slots = useLiveQuery(
-    () => db.slots.where('[tripId+dayIndex]').equals([tripId, day]).toArray(),
-    [tripId, day],
-  );
+  // Whole trip, not just `day`: day 2 onward opens at the previous night's
+  // lodging, so building a day's stops needs the day before it too.
+  const slots = useLiveQuery(() => db.slots.where('tripId').equals(tripId).toArray(), [tripId]);
   const places = useLiveQuery(() => db.places.where('tripId').equals(tripId).toArray(), [tripId]);
 
   // ordered stops with a place (meal slots included since they carry placeId now)
   const stops: Stop[] = useMemo(() => {
     if (!slots || !places) return [];
-    const byId = new Map(places.map((p) => [p.id!, p]));
-    return orderSlots(slots)
-      .filter((s) => !!s.placeId && byId.has(s.placeId!))
-      .map((s) => ({ place: byId.get(s.placeId!)!, time: s.plannedTime, band: s.band }));
-  }, [slots, places]);
+    return buildDayStops(slots, new Map(places.map((p) => [p.id!, p])), day);
+  }, [slots, places, day]);
 
   const coordStops = useMemo(() => stops.filter((s) => s.place.lat != null && s.place.lng != null), [stops]);
   const noCoordStops = useMemo(() => stops.filter((s) => s.place.lat == null || s.place.lng == null), [stops]);
@@ -330,9 +327,10 @@ export default function Live() {
                 <li key={i} className="relative mb-3">
                   <div className={`absolute -left-5 top-1.5 w-4 h-4 rounded-full ring-4 ring-surface ${i < targetIdx || done ? 'bg-primary-container' : i === targetIdx ? 'bg-emerald' : 'bg-surface-variant'}`} />
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-semibold text-on-surface-variant w-12">{s.time}</span>
+                    <span className="text-[13px] font-semibold text-on-surface-variant w-12">{s.fromPrevDay ? '출발' : s.time}</span>
                     <span className={`font-medium ${i === targetIdx ? 'text-primary-container' : ''}`}>
-                      {s.place.kind === 'food' ? '🍜 ' : ''}{s.place.name}
+                      {s.fromPrevDay ? '🏨 ' : s.place.kind === 'food' ? '🍜 ' : ''}{s.place.name}
+                      {s.fromPrevDay && <span className="text-[12px] text-on-surface-variant font-normal"> · 어제 숙소</span>}
                     </span>
                   </div>
                 </li>
