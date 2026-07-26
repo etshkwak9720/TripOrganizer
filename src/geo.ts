@@ -1,5 +1,5 @@
-// External geo services, isolated here so a later swap to Kakao APIs
-// touches only this file.
+// External geo services, Kakao Map API
+// https://developers.kakao.com/docs/latest/ko/local/dev-guide
 export interface GeoCandidate {
   name: string;
   address: string;
@@ -14,25 +14,43 @@ export interface RouteResult {
   estimated?: boolean;        // true = straight-line fallback, not road data
 }
 
-const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
+const KAKAO_API_KEY = '7a8c981b5d45696b57977aa91e0f7087';
+const KAKAO_LOCAL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
-// Name/address -> up to 5 candidates (Korea-biased, Korean labels).
+// Name/address -> up to 5 candidates (Kakao Local Search API - Korea-optimized)
 export async function geocodeSearch(query: string): Promise<GeoCandidate[]> {
-  const url = `${NOMINATIM}?format=jsonv2&limit=5&accept-language=ko&countrycodes=kr&q=${encodeURIComponent(query)}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) throw new Error(`geocode failed: ${res.status}`);
-  const rows = (await res.json()) as { display_name: string; name?: string; lat: string; lon: string }[];
-  return rows.map((r) => ({
-    name: r.name || r.display_name.split(',')[0].trim(),
-    address: r.display_name,
-    lat: Number(r.lat),
-    lng: Number(r.lon),
-  }));
+  const url = `${KAKAO_LOCAL}?query=${encodeURIComponent(query)}&size=5`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `KakaoAK ${KAKAO_API_KEY}`,
+        'Accept': 'application/json',
+      },
+    });
+    if (!res.ok) throw new Error(`geocode failed: ${res.status}`);
+    const json = (await res.json()) as {
+      documents: Array<{
+        place_name: string;
+        address_name: string;
+        road_address_name?: string;
+        x: string;
+        y: string;
+      }>;
+    };
+    return json.documents.slice(0, 5).map((d) => ({
+      name: d.place_name,
+      address: d.road_address_name || d.address_name,
+      lat: Number(d.y),
+      lng: Number(d.x),
+    }));
+  } catch (e) {
+    console.error('Kakao geocode error:', e);
+    throw e;
+  }
 }
 
-// Road route through the given waypoints. null = caller should fall back
-// (offline, server error, or fewer than 2 points).
+// Road route through the given waypoints (fallback to OSRM; null = caller should fall back)
 export async function fetchRoute(pts: { lat: number; lng: number }[]): Promise<RouteResult | null> {
   if (pts.length < 2) return null;
   const coords = pts.map((p) => `${p.lng},${p.lat}`).join(';');
