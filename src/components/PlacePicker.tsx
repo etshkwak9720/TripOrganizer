@@ -4,22 +4,6 @@ import { Icon } from '../ui';
 
 export interface PickedPlace { name: string; address: string; lat?: number; lng?: number }
 
-declare global {
-  interface Window {
-    kakao: {
-      maps: {
-        Map: any;
-        LatLng: any;
-        Marker: any;
-        event: any;
-        services: {
-          Places: any;
-        };
-      };
-    };
-  }
-}
-
 export default function PlacePicker({ title, initialName, initialLat, initialLng, initialAddress, onSave, onClose }: {
   title: string;
   initialName?: string;

@@ -1,75 +1,30 @@
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Circle, useMap } from 'react-leaflet';
-import L from 'leaflet';
+import { useEffect, useRef } from 'react';
 import { Icon } from '../ui';
-import '../leaflet';
 
 export interface MapStop { name: string; lat: number; lng: number; food?: boolean }
 export interface MapPos { lat: number; lng: number; acc?: number }
 
-function numberIcon(n: number, active: boolean, food: boolean) {
+// Kakao zoom runs the opposite way to Leaflet's: level 1 is closest, higher is
+// further out. These are the three levels this map actually asks for.
+const LEVEL_COUNTRY = 12; // whole of Korea, the initial view
+const LEVEL_SINGLE_STOP = 4;
+const LEVEL_MY_POSITION = 3;
+
+// data-* hooks: Kakao renders overlays into markup it controls, with no stable
+// class names, so the smoke tests key off these instead.
+function numberMarkup(n: number, active: boolean, food: boolean) {
   const bg = active ? '#ff8c00' : food ? '#0d9488' : '#64748b';
-  return L.divIcon({
-    className: '',
-    html: `<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:${bg}">${food ? '🍜' : n}</div>`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-  });
+  return `<div data-map-pin="stop" style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);background:${bg}">${food ? '🍜' : n}</div>`;
 }
 
-// Fit map to the day's stops once per stop-list change (not every GPS tick).
-function FitBounds({ stops }: { stops: MapStop[] }) {
-  const map = useMap();
-  const key = stops.map((s) => `${s.lat},${s.lng}`).join(';');
-  useEffect(() => {
-    if (stops.length === 0) return;
-    if (stops.length === 1) { map.setView([stops[0].lat, stops[0].lng], 14); return; }
-    map.fitBounds(L.latLngBounds(stops.map((s) => [s.lat, s.lng] as [number, number])), { padding: [30, 30] });
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return null;
-}
+const ADMIN_MARKUP = `<div data-map-pin="admin" style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:#ff3b30;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">🚌</div>`;
 
-// Spec §4 second half: while moving, refit to my position + the current
-// target whenever the target changes (arrival advances targetIdx) or when
-// a position first arrives. Keyed on targetIdx and hasPos — NOT on the raw
-// pos values, which tick every GPS update and would fight the user's panning.
-function FitLeg({ pos, target, targetIdx }: { pos: MapPos | null; target: MapStop | undefined; targetIdx: number }) {
-  const map = useMap();
-  const hasPos = pos != null;
-  useEffect(() => {
-    if (!pos || !target) return;
-    map.fitBounds(L.latLngBounds([[pos.lat, pos.lng], [target.lat, target.lng]]), { padding: [40, 40] });
-  }, [targetIdx, hasPos]); // eslint-disable-line react-hooks/exhaustive-deps
-  return null;
-}
+const MY_POS_MARKUP = `<div data-map-pin="me" style="width:16px;height:16px;border-radius:50%;background:#3b82f6;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`;
 
-// Manual recenter button (spec §4): fits my position + next destination on
-// demand, so a user who has panned away can always get back.
-function RecenterControl({ pos, target }: { pos: MapPos | null; target: MapStop | undefined }) {
-  const map = useMap();
-  if (!pos) return null;
-  return (
-    <button
-      type="button"
-      aria-label="내 위치로"
-      onClick={() => {
-        if (target) map.fitBounds(L.latLngBounds([[pos.lat, pos.lng], [target.lat, target.lng]]), { padding: [40, 40] });
-        else map.setView([pos.lat, pos.lng], Math.max(map.getZoom(), 15));
-      }}
-      className="absolute bottom-3 right-3 z-[1000] w-10 h-10 rounded-full bg-surface shadow-md border border-outline-variant/40 grid place-items-center text-primary-container active:scale-95 transition"
-    >
-      <Icon name="my_location" className="text-[20px]" />
-    </button>
-  );
-}
-
-function adminIcon() {
-  return L.divIcon({
-    className: '',
-    html: `<div style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;background:#ff3b30;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">🚌</div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-  });
+function bounds(points: { lat: number; lng: number }[]) {
+  const b = new window.kakao.maps.LatLngBounds();
+  for (const p of points) b.extend(new window.kakao.maps.LatLng(p.lat, p.lng));
+  return b;
 }
 
 export default function LiveMap({ stops, route, leg, pos, targetIdx, adminPos }: {
@@ -80,31 +35,157 @@ export default function LiveMap({ stops, route, leg, pos, targetIdx, adminPos }:
   targetIdx: number;
   adminPos?: MapPos | null;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  // Every overlay Kakao draws is imperative and must be removed by hand, so
+  // each group is kept in a ref and cleared before the group is redrawn.
+  const stopOverlaysRef = useRef<any[]>([]);
+  const routeRef = useRef<any>(null);
+  const legRef = useRef<any>(null);
+  const posOverlayRef = useRef<any>(null);
+  const accCircleRef = useRef<any>(null);
+  const adminOverlayRef = useRef<any>(null);
+
   const target = stops[targetIdx];
   const primaryPos = adminPos || pos; // 초점 맞추기용 주 위치 (관리자 우선)
-  
+
+  useEffect(() => {
+    if (!containerRef.current || !window.kakao?.maps?.Map) return;
+    mapRef.current = new window.kakao.maps.Map(containerRef.current, {
+      center: new window.kakao.maps.LatLng(36.5, 127.8),
+      level: LEVEL_COUNTRY,
+    });
+    return () => { mapRef.current = null; };
+  }, []);
+
+  // Numbered stop pins. Redrawn when the list or the active target changes,
+  // since the target pin is coloured differently.
+  const stopsKey = stops.map((s) => `${s.lat},${s.lng},${s.food ? 'f' : ''}`).join(';');
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    for (const o of stopOverlaysRef.current) o.setMap(null);
+    stopOverlaysRef.current = stops.map((s, i) => new window.kakao.maps.CustomOverlay({
+      position: new window.kakao.maps.LatLng(s.lat, s.lng),
+      content: numberMarkup(i + 1, i === targetIdx, !!s.food),
+      map,
+    }));
+  }, [stopsKey, targetIdx]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (routeRef.current) routeRef.current.setMap(null);
+    routeRef.current = route && new window.kakao.maps.Polyline({
+      path: route.map(([lat, lng]) => new window.kakao.maps.LatLng(lat, lng)),
+      strokeWeight: 3,
+      strokeColor: '#64748b',
+      strokeOpacity: 0.55,
+      strokeStyle: 'dashed',
+      map,
+    });
+  }, [route]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (legRef.current) legRef.current.setMap(null);
+    legRef.current = leg && new window.kakao.maps.Polyline({
+      path: leg.map(([lat, lng]) => new window.kakao.maps.LatLng(lat, lng)),
+      strokeWeight: 5,
+      strokeColor: '#ff8c00',
+      strokeOpacity: 0.9,
+      strokeStyle: 'solid',
+      map,
+    });
+  }, [leg]);
+
+  // My position dot + GPS accuracy halo, moved on every tick.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (posOverlayRef.current) posOverlayRef.current.setMap(null);
+    if (accCircleRef.current) accCircleRef.current.setMap(null);
+    posOverlayRef.current = null;
+    accCircleRef.current = null;
+    if (!pos) return;
+
+    const at = new window.kakao.maps.LatLng(pos.lat, pos.lng);
+    if (pos.acc != null && pos.acc < 300) {
+      accCircleRef.current = new window.kakao.maps.Circle({
+        center: at,
+        radius: pos.acc,
+        strokeWeight: 1,
+        strokeColor: '#3b82f6',
+        strokeOpacity: 0.25,
+        fillColor: '#3b82f6',
+        fillOpacity: 0.08,
+        map,
+      });
+    }
+    posOverlayRef.current = new window.kakao.maps.CustomOverlay({ position: at, content: MY_POS_MARKUP, map });
+  }, [pos?.lat, pos?.lng, pos?.acc]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (adminOverlayRef.current) adminOverlayRef.current.setMap(null);
+    adminOverlayRef.current = adminPos && new window.kakao.maps.CustomOverlay({
+      position: new window.kakao.maps.LatLng(adminPos.lat, adminPos.lng),
+      content: ADMIN_MARKUP,
+      map,
+    });
+  }, [adminPos?.lat, adminPos?.lng]);
+
+  // Fit to the day's stops once per stop-list change (not every GPS tick).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || stops.length === 0) return;
+    if (stops.length === 1) {
+      map.setCenter(new window.kakao.maps.LatLng(stops[0].lat, stops[0].lng));
+      map.setLevel(LEVEL_SINGLE_STOP);
+      return;
+    }
+    map.setBounds(bounds(stops), 30, 30, 30, 30);
+  }, [stopsKey]);
+
+  // Spec §4 second half: while moving, refit to my position + the current
+  // target whenever the target changes (arrival advances targetIdx) or when
+  // a position first arrives. Keyed on targetIdx and hasPos — NOT on the raw
+  // pos values, which tick every GPS update and would fight the user's panning.
+  const hasPos = primaryPos != null;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !primaryPos || !target) return;
+    map.setBounds(bounds([primaryPos, target]), 40, 40, 40, 40);
+  }, [targetIdx, hasPos]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Manual recenter (spec §4): fits my position + next destination on demand,
+  // so a user who has panned away can always get back.
+  function recenter() {
+    const map = mapRef.current;
+    if (!map || !primaryPos) return;
+    if (target) {
+      map.setBounds(bounds([primaryPos, target]), 40, 40, 40, 40);
+    } else {
+      map.setCenter(new window.kakao.maps.LatLng(primaryPos.lat, primaryPos.lng));
+      map.setLevel(Math.min(map.getLevel(), LEVEL_MY_POSITION));
+    }
+  }
+
   return (
-    <MapContainer center={[36.5, 127.8]} zoom={7} className="w-full h-full">
-      <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-      {route && <Polyline positions={route} pathOptions={{ color: '#64748b', weight: 3, opacity: 0.55, dashArray: '6 6' }} />}
-      {leg && <Polyline positions={leg} pathOptions={{ color: '#ff8c00', weight: 5, opacity: 0.9 }} />}
-      {stops.map((s, i) => (
-        <Marker key={`${s.lat},${s.lng},${i}`} position={[s.lat, s.lng]} icon={numberIcon(i + 1, i === targetIdx, !!s.food)} />
-      ))}
-      {pos && (
-        <>
-          {pos.acc != null && pos.acc < 300 && (
-            <Circle center={[pos.lat, pos.lng]} radius={pos.acc} pathOptions={{ color: '#3b82f6', opacity: 0.25, fillOpacity: 0.08, weight: 1 }} />
-          )}
-          <CircleMarker center={[pos.lat, pos.lng]} radius={8} pathOptions={{ color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 1 }} />
-        </>
+    <div className="relative w-full h-full">
+      <div ref={containerRef} data-kakao-map className="w-full h-full" />
+      {primaryPos && (
+        <button
+          type="button"
+          aria-label="내 위치로"
+          onClick={recenter}
+          className="absolute bottom-3 right-3 z-[1000] w-10 h-10 rounded-full bg-surface shadow-md border border-outline-variant/40 grid place-items-center text-primary-container active:scale-95 transition"
+        >
+          <Icon name="my_location" className="text-[20px]" />
+        </button>
       )}
-      {adminPos && (
-        <Marker position={[adminPos.lat, adminPos.lng]} icon={adminIcon()} />
-      )}
-      <FitBounds stops={stops} />
-      <FitLeg pos={primaryPos} target={target} targetIdx={targetIdx} />
-      <RecenterControl pos={primaryPos} target={target} />
-    </MapContainer>
+    </div>
   );
 }
