@@ -32,12 +32,16 @@ export function TopBar({ title, back, backTo, right, onEditTitle }: {
           <Icon name="home" className="text-[22px]" />
         </button>
       )}
-      <h1 className="font-head font-bold text-[18px] text-on-surface truncate flex-1">{title}</h1>
-      {onEditTitle && (
-        <button aria-label="여행 이름 수정" onClick={onEditTitle} className="p-1 text-outline hover:text-primary-container hover:bg-primary-container/10 rounded-full w-8 h-8 grid place-items-center active:scale-95 transition shrink-0">
-          <Icon name="edit" className="text-[18px]" />
-        </button>
-      )}
+      {/* 연필은 제목에 딸린 어포던스이므로 flex-1은 이 묶음이 갖는다.
+          h1이 직접 늘어나면 짧은 제목에서 연필이 오른쪽 끝까지 밀려 제목과 떨어진다. */}
+      <div className="flex items-center gap-1 flex-1 min-w-0">
+        <h1 className="font-body font-semibold text-[18px] text-on-surface truncate">{title}</h1>
+        {onEditTitle && (
+          <button aria-label="여행 이름 수정" onClick={onEditTitle} className="h-9 px-3 inline-flex items-center justify-center rounded-md text-[14px] leading-5 font-semibold font-body text-primary-container hover:bg-primary-container/10 active:scale-95 transition shrink-0">
+            {'\uC218\uC815'}
+          </button>
+        )}
+      </div>
       {right}
     </header>
   );

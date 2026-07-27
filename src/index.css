@@ -14,6 +14,14 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Native form controls and text buttons use the same typeface as the app. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 /* app viewport: mobile-first, centered on wide screens */
 #root {
   max-width: 520px;

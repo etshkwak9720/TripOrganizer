@@ -20,8 +20,8 @@ export default {
         'tangerine': '#ff8c00', 'emerald': '#008080',
       },
       fontFamily: {
-        display: ['Plus Jakarta Sans', 'sans-serif'],
-        head: ['Plus Jakarta Sans', 'sans-serif'],
+        display: ['Be Vietnam Pro', 'sans-serif'],
+        head: ['Be Vietnam Pro', 'sans-serif'],
         body: ['Be Vietnam Pro', 'sans-serif'],
       },
       borderRadius: { DEFAULT: '0.5rem', md: '0.75rem', lg: '1rem', xl: '1.5rem' },
