@@ -150,15 +150,19 @@ export default function LiveMap({ stops, route, leg, pos, targetIdx, adminPos }:
   }, [stopsKey]);
 
   // Spec §4 second half: while moving, refit to my position + the current
-  // target whenever the target changes (arrival advances targetIdx) or when
-  // a position first arrives. Keyed on targetIdx and hasPos — NOT on the raw
-  // pos values, which tick every GPS update and would fight the user's panning.
-  const hasPos = primaryPos != null;
+  // target. Refitting on every GPS tick would make the view lurch once a
+  // second and fight the user's panning, so it only refits when the target
+  // changes or when my position has actually left the visible area — which is
+  // exactly when a moving map has to catch up.
+  const fittedIdxRef = useRef(-1);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !primaryPos || !target) return;
+    const at = new window.kakao.maps.LatLng(primaryPos.lat, primaryPos.lng);
+    if (fittedIdxRef.current === targetIdx && map.getBounds().contain(at)) return;
+    fittedIdxRef.current = targetIdx;
     map.setBounds(bounds([primaryPos, target]), 40, 40, 40, 40);
-  }, [targetIdx, hasPos]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [primaryPos?.lat, primaryPos?.lng, targetIdx]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Manual recenter (spec §4): fits my position + next destination on demand,
   // so a user who has panned away can always get back.

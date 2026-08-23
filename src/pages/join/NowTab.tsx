@@ -69,6 +69,7 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
   const [leg, setLeg] = useState<RouteResult | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const legFetchRef = useRef({ t: 0, lat: 0, lng: 0, idx: -1 });
+  const legGenRef = useRef(0);
   const lastArriveRef = useRef<number | null>(null);
   const leftTargetRef = useRef(false);
 
@@ -99,6 +100,7 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
   useEffect(() => {
     setLeg(null); lastArriveRef.current = null; leftTargetRef.current = false;
     legFetchRef.current = { t: 0, lat: 0, lng: 0, idx: -1 };
+    legGenRef.current++;
     setTargetIdx(followingAdmin && schedule.trip.adminTargetIdx != null ? schedule.trip.adminTargetIdx : 0);
   }, [day, coordsKey, schedule.trip.adminTargetIdx, followingAdmin]);
 
@@ -110,19 +112,20 @@ export default function NowTab({ schedule }: { schedule: ShareSnapshot }) {
     const moved = haversineKm(mainPos.lat, mainPos.lng, legFetchRef.current.lat, legFetchRef.current.lng);
     if (targetIdx === legFetchRef.current.idx && now - legFetchRef.current.t < LEG_REFRESH_MS && moved < LEG_REFRESH_KM) return;
     legFetchRef.current = { t: now, lat: mainPos.lat, lng: mainPos.lng, idx: targetIdx };
-    let on = true;
+    // 정리 함수로 취소하지 않는다 — Live.tsx의 같은 자리 주석 참고.
+    const gen = ++legGenRef.current;
+    const from = { lat: mainPos.lat, lng: mainPos.lng };
     const dest = { lat: target.place.lat!, lng: target.place.lng! };
-    fetchRoute([{ lat: mainPos.lat, lng: mainPos.lng }, dest]).then((r) => {
-      if (!on) return;
+    fetchRoute([from, dest]).then((r) => {
+      if (gen !== legGenRef.current) return;
       if (r) { setLeg(r); return; }
-      const km = haversineKm(mainPos.lat, mainPos.lng, dest.lat, dest.lng);
+      const km = haversineKm(from.lat, from.lng, dest.lat, dest.lng);
       setLeg({
-        coords: [[mainPos.lat, mainPos.lng], [dest.lat, dest.lng]],
-        durationMin: estimateTravelMinutes({ name: '현재 위치', lat: mainPos.lat, lng: mainPos.lng }, target.place),
+        coords: [[from.lat, from.lng], [dest.lat, dest.lng]],
+        durationMin: estimateTravelMinutes({ name: '현재 위치', lat: from.lat, lng: from.lng }, target.place),
         distanceKm: km, estimated: true,
       });
     });
-    return () => { on = false; };
   }, [mainPos?.lat, mainPos?.lng, targetIdx, coordsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 학생 자체 GPS 도착 감지 (관리자 위치 비활성화 시 폴백 동작)

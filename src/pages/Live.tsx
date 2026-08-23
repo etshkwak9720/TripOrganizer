@@ -103,12 +103,14 @@ export default function Live() {
   const [leg, setLeg] = useState<RouteResult | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const legFetchRef = useRef({ t: 0, lat: 0, lng: 0, idx: -1 });
+  const legGenRef = useRef(0);
   const lastArriveRef = useRef<number | null>(null);
   const leftTargetRef = useRef(false); // seen outside the radius since targeting this stop
 
   useEffect(() => {
     setTargetIdx(0); setProgress(0); setPlaying(false); setLeg(null);
     lastArriveRef.current = null; leftTargetRef.current = false; legFetchRef.current = { t: 0, lat: 0, lng: 0, idx: -1 };
+    legGenRef.current++;
   }, [day, coordsKey]);
 
   const target = coordStops[targetIdx];
@@ -119,21 +121,25 @@ export default function Live() {
     const moved = haversineKm(pos.lat, pos.lng, legFetchRef.current.lat, legFetchRef.current.lng);
     if (targetIdx === legFetchRef.current.idx && now - legFetchRef.current.t < LEG_REFRESH_MS && moved < LEG_REFRESH_KM) return;
     legFetchRef.current = { t: now, lat: pos.lat, lng: pos.lng, idx: targetIdx };
-    let on = true;
+    // 응답 무효화는 "새 요청이 실제로 시작될 때"만 한다. 정리 함수로 취소하면
+    // GPS가 1초마다 틱하는 이동 중에 매번 진행 중이던 요청이 죽는데, 바로 위
+    // throttle 때문에 새 요청은 뜨지 않는다. 결과적으로 ETA가 마지막으로 성공한
+    // 조회 시점(=출발지에 서 있을 때) 값에 그대로 멈춰버린다.
+    const gen = ++legGenRef.current;
+    const from = { lat: pos.lat, lng: pos.lng };
     const dest = { lat: target.place.lat!, lng: target.place.lng! };
-    fetchRoute([{ lat: pos.lat, lng: pos.lng }, dest]).then((r) => {
-      if (!on) return;
+    fetchRoute([from, dest]).then((r) => {
+      if (gen !== legGenRef.current) return;
       if (r) { setLeg(r); return; }
       // offline / OSRM down -> straight line + rough estimate
-      const km = haversineKm(pos.lat, pos.lng, dest.lat, dest.lng);
+      const km = haversineKm(from.lat, from.lng, dest.lat, dest.lng);
       setLeg({
-        coords: [[pos.lat, pos.lng], [dest.lat, dest.lng]],
-        durationMin: estimateTravelMinutes({ ...pos, name: '현재 위치' }, target.place),
+        coords: [[from.lat, from.lng], [dest.lat, dest.lng]],
+        durationMin: estimateTravelMinutes({ ...from, name: '현재 위치' }, target.place),
         distanceKm: km,
         estimated: true,
       });
     });
-    return () => { on = false; };
   }, [pos?.lat, pos?.lng, targetIdx, coordsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Arrival: advance whenever we're inside the target's radius, but only
