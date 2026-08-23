@@ -1,3 +1,4 @@
+import { buildTripFile, isTripFile, remapIds, TRIP_FILE_VERSION, type ExportedPhoto, type TripFile } from './tripFile';
 import Dexie, { type Table } from 'dexie';
 
 // --- domain types ---
@@ -217,3 +218,113 @@ export async function deleteTrip(tripId: number) {
   });
 }
 
+
+// ---------------------------------------------------------------------------
+// 내보내기 / 가져오기
+//
+// 형식과 id 재매핑은 src/tripFile.ts 의 순수 함수에 있다. 여기서는 DB 를 읽고 쓰는
+// 부분만 맡는다 — 그래야 재매핑 로직을 브라우저 없이 시험할 수 있다.
+// ---------------------------------------------------------------------------
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let s = '';
+  // 한 번에 넘기면 인자 개수 한도에 걸린다. 사진 한 장이 수 MB 라 실제로 터진다.
+  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+function base64ToBlob(data: string, mime: string): Blob {
+  const bin = atob(data);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+export async function exportTrip(
+  tripId: number,
+  opts: { includePhotos: boolean },
+): Promise<TripFile> {
+  const trip = await db.trips.get(tripId);
+  if (!trip) throw new Error('여행을 찾을 수 없습니다');
+
+  const byTrip = <T>(t: Table<T, number>) => t.where('tripId').equals(tripId).toArray();
+  const [groups, members, places, slots, missions, missionResults, adjustments, award, rawPhotos] =
+    await Promise.all([
+      byTrip(db.groups), byTrip(db.members), byTrip(db.places), byTrip(db.slots),
+      byTrip(db.missions), byTrip(db.missionResults), byTrip(db.adjustments),
+      db.awards.get(tripId),
+      opts.includePhotos ? byTrip(db.photos) : Promise.resolve([] as Photo[]),
+    ]);
+
+  const photos: ExportedPhoto[] = [];
+  for (const p of rawPhotos) {
+    photos.push({
+      id: p.id!, placeId: p.placeId, slotId: p.slotId, caption: p.caption, ts: p.ts,
+      mime: p.blob.type || 'image/jpeg',
+      data: await blobToBase64(p.blob),
+    });
+  }
+
+  return buildTripFile(
+    { trip, groups, members, places, slots, missions, missionResults, adjustments, award: award ?? null, photos },
+    opts,
+  );
+}
+
+/** 되살린 여행의 새 id. 원본은 건드리지 않고 항상 새 여행으로 들어간다. */
+export async function importTrip(file: TripFile): Promise<number> {
+  if (!isTripFile(file)) throw new Error('여행 파일 형식이 아닙니다');
+  if (file.version > TRIP_FILE_VERSION) {
+    throw new Error('더 새로운 버전의 파일입니다. 앱을 새로고침해 주세요.');
+  }
+
+  return db.transaction('rw', [
+    db.trips, db.members, db.groups, db.places, db.slots,
+    db.awards, db.missions, db.missionResults, db.adjustments, db.photos,
+  ], async () => {
+    const newTripId = await db.trips.add({ ...file.trip, createdAt: Date.now() } as Trip);
+
+    // 참조되는 표를 먼저 넣어 새 id 를 받는다. 순서가 바뀌면 매핑할 것이 없다.
+    const groupIds = await db.groups.bulkAdd(
+      file.groups.map((g) => ({ ...g, id: undefined, tripId: newTripId })) as Group[],
+      { allKeys: true },
+    );
+    const placeIds = await db.places.bulkAdd(
+      file.places.map((p) => ({ ...p, id: undefined, tripId: newTripId })) as Place[],
+      { allKeys: true },
+    );
+    const slotIds = await db.slots.bulkAdd(
+      file.slots.map((s) => ({ ...s, id: undefined, tripId: newTripId, placeId: null })) as Slot[],
+      { allKeys: true },
+    );
+    const missionIds = await db.missions.bulkAdd(
+      file.missions.map((m) => ({ ...m, id: undefined, tripId: newTripId, placeId: null })) as Mission[],
+      { allKeys: true },
+    );
+
+    const r = remapIds(file, newTripId, {
+      groups: groupIds as number[], places: placeIds as number[],
+      slots: slotIds as number[], missions: missionIds as number[],
+    });
+
+    // 참조를 채워 다시 쓴다. 위에서는 자리만 잡고 placeId 를 비워뒀다.
+    await Promise.all([
+      ...r.slots.map((s, i) => db.slots.update(slotIds[i] as number, { placeId: s.placeId })),
+      ...r.missions.map((m, i) => db.missions.update(missionIds[i] as number, { placeId: m.placeId })),
+    ]);
+
+    if (r.members.length) await db.members.bulkAdd(r.members as Member[]);
+    if (r.missionResults.length) await db.missionResults.bulkAdd(r.missionResults as MissionResult[]);
+    if (r.adjustments.length) await db.adjustments.bulkAdd(r.adjustments as Adjustment[]);
+    if (r.award) await db.awards.put(r.award);
+    if (r.photos.length) {
+      await db.photos.bulkAdd(r.photos.map((p) => ({
+        tripId: newTripId, placeId: p.placeId, slotId: p.slotId,
+        caption: p.caption, ts: p.ts, blob: base64ToBlob(p.data, p.mime),
+      })) as Photo[]);
+    }
+
+    return newTripId;
+  });
+}

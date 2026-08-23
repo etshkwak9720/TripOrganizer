@@ -13,7 +13,8 @@
 
 - **브랜치**: `feat/trip-share-server` (origin과 동기화됨). **PR: https://github.com/etshkwak9720/TripOrganizer/pull/2** (아직 main에 머지 안 함 — 프로덕션은 이 브랜치를 직접 배포 중).
 - **라이브 프로덕션**: **https://triporganizer-app.vercel.app** (Vercel 프로젝트명 `triporganizer`).
-  - ⚠️ `vercel --prod`는 자동으로 `yeojeong-app.vercel.app`(옛 프로젝트 이름에서 남은 상용 도메인)에도 alias한다. 매 배포 후 최신 배포를 `triporganizer-app.vercel.app`로 수동 alias해야 한다: `npx vercel alias set <최신배포URL> triporganizer-app.vercel.app`. (영구 해결하려면 Vercel 대시보드 Settings→Domains에서 yeojeong-app 제거 + triporganizer-app을 Production Domain으로.)
+  - 배포는 `npx vercel deploy --prod --yes --archive=tgz` 한 번이면 된다. **수동 alias 는 더 이상 필요 없다** (2026-08-20 확인: 배포 한 번에 `triporganizer-app` · `yeojeong-app` · `triporganizer-jeju` 세 주소가 모두 최신 빌드로 따라갔다). 예전 인수인계에 있던 "매 배포 후 수동 alias" 경고는 낡은 것이라 지웠다.
+  - 같은 앱을 가리키는 주소가 3개다. 정리하려면 Vercel Settings→Domains 에서 쓰지 않는 것을 떼면 되지만, 누가 북마크해 뒀을 수 있어 그대로 두고 있다.
 - **데모 공유**(프로덕션 KV에 존재): `https://triporganizer-app.vercel.app/join/demo227416`, 비번 **1234** (미션/모둠 데이터 포함).
 
 ## 3. 완료된 것 (이 브랜치)
@@ -116,3 +117,48 @@ npx vercel alias set "$LATEST" triporganizer-app.vercel.app
 - 스모크 스크립트 컨벤션: `scripts/smoke-*.mjs` (Playwright, `check()`로 집계 후 `process.exit`). 순수 로직은 `scripts/test-*.mjs`(vite `ssrLoadModule`).
 - 아이콘은 서브셋 폰트(`public/assets/fonts/material-symbols-subset.woff2`) — 새 아이콘 쓰면 `npm run icons:subset` 재생성 후 커밋.
 - 커밋은 태스크 단위로 자주. 커밋 승인 시 push까지.
+
+
+---
+
+## 여행 내보내기 / 가져오기 (2026-08-20)
+
+로드맵 1번(데이터 보존)을 구현했다. 여행 자료가 브라우저 IndexedDB 에만 있어
+브라우저를 정리하면 통째로 사라지던 문제의 유일한 대비책이다.
+
+| 파일 | 역할 |
+|---|---|
+| `src/tripFile.ts` | 형식과 **id 재매핑** (순수 함수, 브라우저 없이 시험 가능) |
+| `src/db.ts` | `exportTrip` / `importTrip` — DB 읽고 쓰기, Blob ↔ base64 |
+| `src/components/BackupDialog.tsx` | 내보내기 창 · 불러오기 버튼 · 로컬 저장 경고 · 끝난 여행 저장 권유 |
+
+### 반드시 알아야 할 것
+
+- **`sharePassword` · `shareId` · 인솔자 실시간 위치는 파일에 넣지 않는다.** 이 파일은
+  참가자에게 메신저로 건네질 수 있다. 평문 공유 비밀번호가 딸려가면 안 되고, 복원본이
+  원본과 같은 공유 주소를 주장하면 서로 덮어쓴다. `buildTripFile` 이 구조분해로 떼어낸다.
+- **id 재매핑이 이 기능의 핵심이다.** Dexie 의 `++id` 는 복원 때 번호가 달라지는데
+  `slot.placeId` · `mission.placeId` · `missionResult.missionId` · `member.groupId` ·
+  `adjustment.groupId` · `photo.placeId/slotId` 가 전부 번호로 서로를 가리킨다. 번호만
+  새로 받고 참조를 그대로 두면 **같은 파일을 두 번 복원했을 때 두 번째가 첫 번째의 장소를
+  가리킨다.** `remapIds` 가 옛→새 지도를 만들어 갈아끼우고, 시험이 이 경우를 직접 본다.
+- **참조가 끊긴 미션 결과·점수 조정은 버린다.** 남기면 순위가 틀어진다.
+- **아이콘을 새로 쓰면 `npm run icons:subset` 을 돌려야 한다.** 폰트가 실제로 쓰는 아이콘만
+  담도록 서브셋돼 있어서, 안 돌리면 새 아이콘이 글자로 깨져 보인다. `npm run test:icons`
+  가 잡아준다 (이번에도 `info`·`upload` 두 개를 그렇게 잡았다).
+
+### 시험
+
+```bash
+npm run test:tripfile   # 순수 로직 28개 (브라우저 불필요)
+npm run test:backup     # 내보내기 → 삭제 → 복원 21개 (dev 서버 필요)
+```
+
+`test:backup` 은 사진까지 포함한 여행을 심고, 내보내고, IndexedDB 를 통째로 지운 뒤
+되살려서 모든 참조가 제자리인지 본다. 같은 파일을 두 번 복원하는 경우도 포함한다.
+
+### 시험 돌릴 때 주의
+
+- **`localhost` 로 띄워야 한다.** `127.0.0.1` 로 하면 카카오맵 appkey 의 등록 도메인과
+  달라 지도가 안 뜨고 `test:map` 이 2개 실패한다 (앱 문제가 아니다).
+- `test:offline` 은 dev 서버가 아니라 **`vite preview`(4173)** 를 본다.

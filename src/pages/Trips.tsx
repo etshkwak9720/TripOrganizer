@@ -5,6 +5,7 @@ import { db, type TripMode, type Trip, deleteTrip } from '../db';
 import { publishShare } from '../shareClient';
 import { Icon, Screen, EmptyState } from '../ui';
 import { QRCodeSVG } from 'qrcode.react';
+import { ExportDialog, FinishedTripPrompt, ImportButton, LocalOnlyNotice } from '../components/BackupDialog';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -124,11 +125,13 @@ function TripCard({
   trip,
   isFinished,
   onShare,
+  onExport,
   onDelete,
 }: {
   trip: TripWithStats;
   isFinished: boolean;
   onShare: (tripId: number) => void;
+  onExport: (id: number, title: string) => void;
   onDelete: (id: number, title: string) => void;
 }) {
   return (
@@ -162,6 +165,18 @@ function TripCard({
           aria-label="여행 공유"
         >
           <Icon name="ios_share" className="text-[18px]" />
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onExport(trip.id!, trip.title);
+          }}
+          className="w-8 h-8 rounded-full grid place-items-center text-outline hover:text-primary-container hover:bg-primary-container/10 active:scale-95 transition shrink-0"
+          aria-label="여행 파일로 저장"
+          data-testid="export-trip"
+        >
+          <Icon name="download" className="text-[18px]" />
         </button>
 
         <button
@@ -244,6 +259,7 @@ export default function Trips() {
   const [creating, setCreating] = useState(false);
   const [shareTripId, setShareTripId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
+  const [exportTarget, setExportTarget] = useState<{ id: number; title: string } | null>(null);
 
   if (trips === undefined) return null;
 
@@ -279,6 +295,7 @@ export default function Trips() {
                       trip={t}
                       isFinished={false}
                       onShare={(id) => setShareTripId(id)}
+                      onExport={(id, title) => setExportTarget({ id, title })}
                       onDelete={(id, title) => setDeleteTarget({ id, title })}
                     />
                   ))}
@@ -298,6 +315,7 @@ export default function Trips() {
                       trip={t}
                       isFinished={true}
                       onShare={(id) => setShareTripId(id)}
+                      onExport={(id, title) => setExportTarget({ id, title })}
                       onDelete={(id, title) => setDeleteTarget({ id, title })}
                     />
                   ))}
@@ -307,10 +325,31 @@ export default function Trips() {
           </div>
         )}
 
+        <div className="pt-2 pb-10 space-y-3">
+          <FinishedTripPrompt
+            trips={finishedTrips.map((t) => ({ id: t.id!, title: t.title }))}
+            onExport={(id, title) => setExportTarget({ id, title })}
+          />
+          <LocalOnlyNotice
+            onExport={activeTrips[0] || finishedTrips[0]
+              ? () => { const t = activeTrips[0] ?? finishedTrips[0]; setExportTarget({ id: t.id!, title: t.title }); }
+              : undefined}
+          />
+          <ImportButton onDone={() => { /* useLiveQuery 가 목록을 알아서 다시 읽는다 */ }} />
+        </div>
+
         {creating && <CreateForm onClose={() => setCreating(false)} />}
 
         {shareTripId != null && (
           <ShareDialog tripId={shareTripId} onClose={() => setShareTripId(null)} />
+        )}
+
+        {exportTarget && (
+          <ExportDialog
+            tripId={exportTarget.id}
+            title={exportTarget.title}
+            onClose={() => setExportTarget(null)}
+          />
         )}
 
         {deleteTarget && (

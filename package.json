@@ -26,7 +26,9 @@
     "icons": "node scripts/make-icons.mjs",
     "icons:subset": "python scripts/subset-icons.py",
     "test:icons": "node scripts/smoke-icons.mjs",
-    "devlog": "node scripts/devlog.mjs"
+    "devlog": "node scripts/devlog.mjs",
+    "test:backup": "node scripts/smoke-backup.mjs",
+    "test:tripfile": "node scripts/test-tripfile.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^0.27.3",
